@@ -1,35 +1,44 @@
 import {
-  AtkinsonHyperlegible_400Regular,
-  AtkinsonHyperlegible_700Bold,
+  Figtree_400Regular,
+  Figtree_600SemiBold,
+  Figtree_700Bold,
+  Figtree_800ExtraBold,
   useFonts,
-} from '@expo-google-fonts/atkinson-hyperlegible';
+} from '@expo-google-fonts/figtree';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 
-import { BestillingerProvider } from '../lib/bestillinger';
-import { farger, skrift } from '../lib/tema';
+import { Toast } from '../components/Toast';
+import { AppProvider } from '../lib/app-tilstand';
+import { farger } from '../lib/tema';
 
 export default function RootLayout() {
-  const [lastet] = useFonts({ AtkinsonHyperlegible_400Regular, AtkinsonHyperlegible_700Bold });
-  if (!lastet) return null;
+  const [lastet, feil] = useFonts({
+    Figtree_400Regular,
+    Figtree_600SemiBold,
+    Figtree_700Bold,
+    Figtree_800ExtraBold,
+  });
+  if (!lastet && !feil) return null;
 
   return (
-    <BestillingerProvider>
-      <StatusBar style="light" />
+    <AppProvider>
+      <StatusBar style="dark" />
+      {/* Ingen toppfelt: skjermene tegner selv innholdet rett under statuslinjen.
+          Overgangene lager vi med Reanimated i hver skjerm, så Stack skal ikke animere. */}
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: farger.lilla },
-          headerTintColor: farger.hvit,
-          headerTitleStyle: { fontFamily: skrift.fet, fontSize: 22 },
-          headerBackTitle: 'Tilbake',
+          headerShown: false,
+          animation: 'none',
           contentStyle: { backgroundColor: farger.krem },
         }}
       >
-        <Stack.Screen name="index" options={{ title: 'Hverdagshelten' }} />
-        <Stack.Screen name="bestill" options={{ title: 'Bestill hjelp' }} />
-        <Stack.Screen name="mine-bestillinger" options={{ title: 'Mine bestillinger' }} />
-        <Stack.Screen name="kontakt" options={{ title: 'Kontakt oss' }} />
+        <Stack.Screen name="(faner)" />
+        <Stack.Screen name="velg-rolle" />
+        <Stack.Screen name="bestill" />
+        <Stack.Screen name="oppdrag/[id]" />
       </Stack>
-    </BestillingerProvider>
+      <Toast />
+    </AppProvider>
   );
 }
