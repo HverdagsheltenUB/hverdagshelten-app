@@ -30,6 +30,23 @@
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#FFE7CE"
+    },
+    "owner": "hverdagshelten",
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "0747552c-a994-404c-9552-a5730b450592"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/0747552c-a994-404c-9552-a5730b450592"
     }
   }
 }

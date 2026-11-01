@@ -1,155 +1,164 @@
-import { router } from 'expo-router';
-import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ArrowRight, CalendarDays, Check, House } from 'lucide-react-native';
+import { useState, type ReactNode } from 'react';
+import { StyleSheet, View } from 'react-native';
 
-import { StorKnapp } from '../components/StorKnapp';
-import { useBestillinger } from '../lib/bestillinger';
-import { farger, priser, skrift, storrelse } from '../lib/tema';
+import { Knapp } from '../components/Knapp';
+import { Ikonboks, Kort, Skillelinje } from '../components/Kort';
+import { Listevalg } from '../components/Listevalg';
+import { Skjerm } from '../components/Skjerm';
+import { Overskrift, Tilbakelenke } from '../components/Smaabiter';
+import { Tekst } from '../components/Tekst';
+import { Chip, Chiprad } from '../components/Valg';
+import { useApp } from '../lib/app-tilstand';
+import { anne, dager, finnKategori, kategorier, tider } from '../lib/eksempeldata';
+import { gaTilbake, settRetning } from '../lib/overgang';
+import { farger, priser } from '../lib/tema';
 
-const tjenester = [
-  { navn: 'Handling', ikon: '🛒' },
-  { navn: 'Hagearbeid', ikon: '🌱' },
-  { navn: 'Kaffe og selskap', ikon: '☕' },
-  { navn: 'Lufte hunden', ikon: '🐕' },
-  { navn: 'Noe annet', ikon: '💬' },
-];
-
-const dager = ['I dag', 'I morgen', 'Denne uken'];
+type Steg = 1 | 2 | 3;
 
 // Ett spørsmål om gangen, så det aldri blir for mye på skjermen.
 export default function Bestill() {
-  const { leggTil } = useBestillinger();
-  const [steg, setSteg] = useState(1);
-  const [tjeneste, setTjeneste] = useState('');
-  const [dag, setDag] = useState('');
-  const [melding, setMelding] = useState('');
+  const { sendBestilling, visToast } = useApp();
+  const [steg, setSteg] = useState<Steg>(1);
+  const [kategori, setKategori] = useState('');
+  const [dag, setDag] = useState(dager[0]);
+  const [tid, setTid] = useState(tider[0]);
 
-  function send() {
-    leggTil({ tjeneste, dag, melding });
-    setSteg(4);
+  function gaTilSteg(nytt: Steg) {
+    settRetning(nytt > steg ? 'frem' : 'tilbake');
+    setSteg(nytt);
   }
 
-  return (
-    <ScrollView contentContainerStyle={styles.side} keyboardShouldPersistTaps="handled">
-      {steg < 4 && <Text style={styles.steg}>Steg {steg} av 3</Text>}
+  function send() {
+    sendBestilling({ kategori, dag, tid });
+    gaTilbake('/');
+    visToast('Bestillingen er sendt. Du får beskjed når en hjelper har sagt ja.');
+  }
 
-      {steg === 1 && (
-        <>
-          <Text style={styles.sporsmal}>Hva trenger du hjelp med?</Text>
-          {tjenester.map((t) => (
-            <StorKnapp
-              key={t.navn}
-              ikon={t.ikon}
-              tekst={t.navn}
-              variant="lys"
-              valgt={tjeneste === t.navn}
-              onPress={() => {
-                setTjeneste(t.navn);
-                setSteg(2);
-              }}
-            />
-          ))}
-        </>
-      )}
+  const stegtekst = (
+    <Tekst variant="under" vekt={700} farge={farger.lilla}>
+      Steg {steg} av 3
+    </Tekst>
+  );
 
-      {steg === 2 && (
-        <>
-          <Text style={styles.sporsmal}>Når passer det for deg?</Text>
-          {dager.map((d) => (
-            <StorKnapp
-              key={d}
-              tekst={d}
-              variant="lys"
-              valgt={dag === d}
-              onPress={() => {
-                setDag(d);
-                setSteg(3);
-              }}
-            />
-          ))}
-          <StorKnapp tekst="Tilbake" variant="lys" onPress={() => setSteg(1)} />
-        </>
-      )}
-
-      {steg === 3 && (
-        <>
-          <Text style={styles.sporsmal}>Se over bestillingen</Text>
-          <View style={styles.kort}>
-            <Text style={styles.tekst}>Hjelp med: {tjeneste}</Text>
-            <Text style={styles.tekst}>Når: {dag}</Text>
-            <Text style={styles.tekst}>
-              Pris: {priser.timepris} kr per time + {priser.gebyr} kr per bestilling
-            </Text>
-          </View>
-
-          <Text style={styles.tekst}>Vil du skrive noe til hjelperen? (Du kan hoppe over dette.)</Text>
-          <TextInput
-            style={styles.felt}
-            value={melding}
-            onChangeText={setMelding}
-            placeholder="For eksempel: Jeg trenger melk og brød"
-            placeholderTextColor="#7A6A82"
-            multiline
+  if (steg === 1) {
+    return (
+      <Skjerm nokkel="1">
+        <Tilbakelenke tekst="Til forsiden" onPress={() => gaTilbake('/')} />
+        {stegtekst}
+        <Overskrift tittel="Hva trenger du hjelp med?" />
+        {kategorier.map((k) => (
+          <Listevalg
+            key={k.navn}
+            ikon={k.ikon}
+            tittel={k.navn}
+            undertekst={k.beskrivelse}
+            onPress={() => {
+              setKategori(k.navn);
+              gaTilSteg(2);
+            }}
           />
+        ))}
+      </Skjerm>
+    );
+  }
 
-          <StorKnapp ikon="✅" tekst="Send bestilling" onPress={send} />
-          <StorKnapp tekst="Tilbake" variant="lys" onPress={() => setSteg(2)} />
-        </>
-      )}
+  if (steg === 2) {
+    return (
+      <Skjerm nokkel="2">
+        <Tilbakelenke tekst="Tilbake" onPress={() => gaTilSteg(1)} />
+        {stegtekst}
+        <Overskrift tittel="Når passer det?" undertekst={kategori} />
+        <View style={styles.gruppe}>
+          <Tekst variant="mellomtittel">Dag</Tekst>
+          <Chiprad>
+            {dager.map((d) => (
+              <Chip key={d} tekst={d} valgt={dag === d} onPress={() => setDag(d)} />
+            ))}
+          </Chiprad>
+        </View>
+        <View style={styles.gruppe}>
+          <Tekst variant="mellomtittel">Tid</Tekst>
+          <Chiprad>
+            {tider.map((t) => (
+              <Chip key={t} tekst={t} valgt={tid === t} onPress={() => setTid(t)} />
+            ))}
+          </Chiprad>
+        </View>
+        <Knapp ikon={ArrowRight} ikonEtter tekst="Neste" onPress={() => gaTilSteg(3)} style={styles.luft} />
+      </Skjerm>
+    );
+  }
 
-      {steg === 4 && (
-        <>
-          <Text style={styles.sporsmal}>Takk! Bestillingen er sendt.</Text>
-          <Text style={styles.tekst}>
-            En hverdagshelt tar kontakt med deg så snart som mulig.
-          </Text>
-          <StorKnapp tekst="Tilbake til forsiden" onPress={() => router.dismissAll()} />
-        </>
-      )}
-    </ScrollView>
+  const valgtKategori = finnKategori(kategori);
+
+  return (
+    <Skjerm nokkel="3">
+      <Tilbakelenke tekst="Tilbake" onPress={() => gaTilSteg(2)} />
+      {stegtekst}
+      <Overskrift tittel="Ser dette riktig ut?" />
+
+      <Kort>
+        <Oppsummering ikon={<Ikonboks ikon={CalendarDays} />} tekst={`${dag}, kl. ${tid}`} />
+        <Oppsummering ikon={<Ikonboks ikon={valgtKategori.ikon} />} tekst={valgtKategori.navn} />
+        <Oppsummering ikon={<Ikonboks ikon={House} />} tekst={`Hjemme hos deg, ${anne.adresse}`} />
+      </Kort>
+
+      <Kort>
+        <Prisrad tekst="Hjelp, 1 time" belop={priser.timepris} />
+        <Prisrad tekst="Hverdagshelten-gebyr" belop={priser.gebyr} />
+        <Skillelinje />
+        <Prisrad tekst="Å betale" belop={priser.timepris + priser.gebyr} fet />
+      </Kort>
+
+      <Tekst variant="under">Du betaler først når besøket er gjennomført.</Tekst>
+
+      <Knapp ikon={Check} tekst="Send bestilling" onPress={send} />
+    </Skjerm>
+  );
+}
+
+function Oppsummering({ ikon, tekst }: { ikon: ReactNode; tekst: string }) {
+  return (
+    <View style={styles.rad}>
+      {ikon}
+      <Tekst variant="brod" vekt={600} style={styles.flex}>
+        {tekst}
+      </Tekst>
+    </View>
+  );
+}
+
+function Prisrad({ tekst, belop, fet = false }: { tekst: string; belop: number; fet?: boolean }) {
+  return (
+    <View style={styles.prisrad}>
+      <Tekst variant="brod" vekt={fet ? 800 : 400}>
+        {tekst}
+      </Tekst>
+      <Tekst variant="brod" vekt={fet ? 800 : 600}>
+        {belop} kr
+      </Tekst>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  side: {
-    padding: 24,
-    gap: 18,
+  gruppe: {
+    gap: 10,
   },
-  steg: {
-    fontFamily: skrift.vanlig,
-    fontSize: 20,
-    color: farger.lilla,
+  luft: {
+    marginTop: 8,
   },
-  sporsmal: {
-    fontFamily: skrift.fet,
-    fontSize: storrelse.tittel - 4,
-    color: farger.tekst,
-    marginBottom: 4,
+  rad: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
   },
-  tekst: {
-    fontFamily: skrift.vanlig,
-    fontSize: storrelse.tekst,
-    color: farger.tekst,
-    lineHeight: 30,
+  flex: {
+    flex: 1,
   },
-  kort: {
-    backgroundColor: farger.hvit,
-    borderRadius: 20,
-    padding: 20,
-    gap: 8,
-    borderWidth: 3,
-    borderColor: farger.lavendel,
-  },
-  felt: {
-    backgroundColor: farger.hvit,
-    borderRadius: 16,
-    borderWidth: 3,
-    borderColor: farger.lavendel,
-    padding: 16,
-    minHeight: 120,
-    fontFamily: skrift.vanlig,
-    fontSize: storrelse.tekst,
-    color: farger.tekst,
-    textAlignVertical: 'top',
+  prisrad: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
 });
