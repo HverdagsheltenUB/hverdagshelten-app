@@ -7,7 +7,10 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "CFBundleDevelopmentRegion": "nb"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -24,12 +27,20 @@
     "scheme": "hverdagshelten",
     "plugins": [
       "expo-router",
-      "expo-font"
+      "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Hverdagshelten trenger tilgang til bildene dine for å legge ved bilde av handlelisten eller kvitteringen.",
+          "cameraPermission": "Hverdagshelten trenger kameraet for å ta bilde av handlelisten eller kvitteringen.",
+          "microphonePermission": false
+        }
+      ]
     ],
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FFE7CE"
+      "backgroundColor": "#52395E"
     },
     "owner": "hverdagshelten",
     "extra": {

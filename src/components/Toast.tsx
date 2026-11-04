@@ -1,5 +1,5 @@
-import { StyleSheet } from 'react-native';
-import Animated, { FadeIn, FadeOut, Keyframe, useReducedMotion } from 'react-native-reanimated';
+import { Platform, StyleSheet } from 'react-native';
+import Animated, { FadeIn, FadeInDown, FadeOut, Keyframe, useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useApp } from '../lib/app-tilstand';
@@ -24,7 +24,7 @@ export function Toast() {
   return (
     <Animated.View
       key={toast.id}
-      entering={redusertBevegelse ? FadeIn : glirOpp}
+      entering={redusertBevegelse ? FadeIn : Platform.OS === 'web' ? FadeInDown.duration(animasjon.skjerm) : glirOpp}
       exiting={FadeOut.duration(200)}
       pointerEvents="none"
       accessibilityLiveRegion="polite"
