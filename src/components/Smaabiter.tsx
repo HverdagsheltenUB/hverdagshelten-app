@@ -45,8 +45,8 @@ export function Stjerner({ antall = 5 }: { antall?: number }) {
 export function Tilbakelenke({ tekst, onPress }: { tekst: string; onPress: () => void }) {
   return (
     <Pressable accessibilityRole="link" onPress={onPress} hitSlop={12} style={[styles.rad, styles.tilbake]}>
-      <ArrowLeft size={20} color={farger.lilla} strokeWidth={ikonStrek} />
-      <Tekst variant="brodLiten" vekt={700} farge={farger.lilla}>
+      <ArrowLeft size={22} color={farger.lilla} strokeWidth={ikonStrek} />
+      <Tekst variant="brod" vekt={700} farge={farger.lilla}>
         {tekst}
       </Tekst>
     </Pressable>
@@ -127,6 +127,7 @@ const styles = StyleSheet.create({
   tilbake: {
     gap: 6,
     alignSelf: 'flex-start',
+    minHeight: 44,
   },
   statboks: {
     flex: 1,

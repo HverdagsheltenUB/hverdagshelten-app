@@ -1,58 +1,90 @@
-import { CalendarDays, ChevronRight, MapPin, Plus } from 'lucide-react-native';
+import { CalendarDays, CreditCard, MessageCircleHeart, Plus, Users } from 'lucide-react-native';
 import { StyleSheet, View } from 'react-native';
 
+import { SjekketMerke } from '../../components/Ekstra';
 import { Knapp } from '../../components/Knapp';
 import { Ikonboks, Kort, Skillelinje } from '../../components/Kort';
+import { Listevalg } from '../../components/Listevalg';
 import { Skjerm } from '../../components/Skjerm';
 import { Avatar, Lenkerad, Overskrift, Pille } from '../../components/Smaabiter';
 import { Tekst } from '../../components/Tekst';
 import { useApp } from '../../lib/app-tilstand';
-import { anne, motested } from '../../lib/eksempeldata';
-import { gaFrem, gaTilFane } from '../../lib/overgang';
-import { farger, ikonStrek } from '../../lib/tema';
+import { dagnavn, dagnavnLangt, tidsrom } from '../../lib/dato';
+import { finnHjelper, kontaktperson, tittelFor } from '../../lib/eksempeldata';
+import { gaFrem } from '../../lib/overgang';
+import { useMineAvtaler } from '../../lib/utvalg';
 
 export function Hjem() {
-  const { bestillinger } = useApp();
+  const { data } = useApp();
+  const { kommende, tidligere } = useMineAvtaler();
+  const neste = kommende.find((o) => o.status === 'bekreftet');
+  const venter = kommende.filter((o) => o.status === 'sendt');
+  const aBetale = tidligere.filter((o) => o.status === 'ferdig' && !o.betalt);
+  const hjelper = finnHjelper(neste?.hjelperId);
 
   return (
     <Skjerm>
-      <Overskrift tittel={`Hei, ${anne.fornavn}.`} undertekst="Her finner du hjelp i hverdagen." />
+      <Overskrift tittel={`Hei, ${data.eldre.fornavn}.`} undertekst="Her finner du hjelp i hverdagen." />
 
-      <Kort>
-        <Tekst variant="under" vekt={600}>
-          Ditt neste besøk
-        </Tekst>
-        <View style={styles.rad}>
-          <Ikonboks ikon={CalendarDays} />
-          <View style={styles.flex}>
-            <Tekst variant="stor">Torsdag 29. oktober</Tekst>
-            <Tekst variant="stor">Kl. 14.00–15.00</Tekst>
-          </View>
-        </View>
-        <View style={styles.rad}>
-          <Avatar bokstav="E" />
-          <View style={styles.flex}>
-            <Tekst variant="brod" vekt={600}>
-              Emil blir med deg på tur
+      {aBetale.map((o) => (
+        <Listevalg
+          key={o.id}
+          ikon={CreditCard}
+          tittel="Betal for besøket"
+          undertekst={`${tittelFor(o)} med ${finnHjelper(o.hjelperId)?.fornavn ?? 'hjelperen'}`}
+          onPress={() => gaFrem({ pathname: '/betal/[id]', params: { id: o.id } })}
+        />
+      ))}
+
+      {neste && hjelper ? (
+        <Kort
+          onPress={() => gaFrem({ pathname: '/avtale/[id]', params: { id: neste.id } })}
+          accessibilityLabel="Ditt neste besøk"
+        >
+          <View style={styles.rad}>
+            <Tekst variant="under" vekt={600} style={styles.flex}>
+              Ditt neste besøk
             </Tekst>
-            <Tekst variant="under">Avtalen er bekreftet</Tekst>
+            {neste.paVei && <Pille tekst={`${hjelper.fornavn} er på vei`} variant="gronn" />}
           </View>
-        </View>
-        <Skillelinje />
-        <Lenkerad tekst="Se avtalen" onPress={() => gaTilFane('/avtaler')} />
-      </Kort>
+          <View style={styles.rad}>
+            <Ikonboks ikon={CalendarDays} />
+            <View style={styles.flex}>
+              <Tekst variant="stor">{dagnavnLangt(neste.dato)}</Tekst>
+              <Tekst variant="stor">Kl. {tidsrom(neste.start, neste.varighet)}</Tekst>
+            </View>
+          </View>
+          <View style={styles.rad}>
+            <Avatar bokstav={hjelper.fornavn[0]} />
+            <View style={styles.flex}>
+              <Tekst variant="brod" vekt={600}>
+                {hjelper.fornavn} kommer · {tittelFor(neste).toLowerCase()}
+              </Tekst>
+              <SjekketMerke />
+            </View>
+          </View>
+          <Skillelinje />
+          <Lenkerad tekst="Se avtalen" onPress={() => gaFrem({ pathname: '/avtale/[id]', params: { id: neste.id } })} />
+        </Kort>
+      ) : (
+        <Kort>
+          <Tekst variant="mellomtittel">Ingen avtaler ennå</Tekst>
+          <Tekst variant="brod">Når en hjelper har sagt ja, ser du det her.</Tekst>
+        </Kort>
+      )}
 
-      {bestillinger.length > 0 && (
+      {venter.length > 0 && (
         <Kort>
           <Tekst variant="mellomtittel">Venter på svar</Tekst>
-          {bestillinger.map((b) => (
-            <View key={b.id} style={styles.bestilling}>
+          {venter.map((o) => (
+            <View key={o.id} style={styles.rad}>
               <View style={styles.flex}>
                 <Tekst variant="brod" vekt={600}>
-                  {b.kategori}
+                  {tittelFor(o)}
+                  {o.bestiltFor ? ` for ${o.mottaker.fornavn}` : ''}
                 </Tekst>
                 <Tekst variant="under">
-                  {b.dag} · {b.tid}
+                  {dagnavn(o.dato)} · {tidsrom(o.start, o.varighet)}
                 </Tekst>
               </View>
               <Pille tekst="Sendt" />
@@ -61,15 +93,30 @@ export function Hjem() {
         </Kort>
       )}
 
-      <Knapp ikon={Plus} tekst="Bestill hjelp" onPress={() => gaFrem('/bestill')} />
+      <View style={styles.knapper}>
+        <Knapp ikon={Plus} tekst="Bestill hjelp" onPress={() => gaFrem('/bestill')} />
+        <Knapp
+          variant="sekundar"
+          ikon={Users}
+          tekst="Bestill for noen andre"
+          hint="For eksempel for mor, far eller en nabo"
+          onPress={() => gaFrem({ pathname: '/bestill', params: { for: 'annen' } })}
+        />
+      </View>
 
-      <Kort myk onPress={() => gaTilFane('/kart')} accessibilityLabel="Se møtestedet på kart" style={styles.rad}>
-        <Ikonboks ikon={MapPin} />
+      <Kort
+        myk
+        onPress={() => gaFrem('/kontakt')}
+        accessibilityLabel={`Skriv til ${kontaktperson.fornavn}`}
+        style={styles.rad}
+      >
+        <Ikonboks ikon={MessageCircleHeart} />
         <View style={styles.flex}>
-          <Tekst variant="listetittel">Se møtestedet på kart</Tekst>
-          <Tekst variant="under">{motested.navn} · eksempel</Tekst>
+          <Tekst variant="listetittel">Lurer du på noe?</Tekst>
+          <Tekst variant="under">
+            Skriv til {kontaktperson.fornavn} i teamet. {kontaktperson.apent}.
+          </Tekst>
         </View>
-        <ChevronRight size={22} color={farger.dempet} strokeWidth={ikonStrek} />
       </Kort>
     </Skjerm>
   );
@@ -84,9 +131,7 @@ const styles = StyleSheet.create({
   flex: {
     flex: 1,
   },
-  bestilling: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  knapper: {
     gap: 12,
   },
 });

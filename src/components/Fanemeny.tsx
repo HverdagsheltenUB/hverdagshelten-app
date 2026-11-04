@@ -1,5 +1,5 @@
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
-import { CalendarDays, ClipboardList, House, Map, User, type LucideIcon } from 'lucide-react-native';
+import { CalendarDays, ClipboardList, House, User, type LucideIcon } from 'lucide-react-native';
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { interpolateColor, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -14,7 +14,6 @@ const faner: Record<string, (rolle: Rolle | null) => { tekst: string; ikon: Luci
   index: () => ({ tekst: 'Hjem', ikon: House }),
   avtaler: (rolle) =>
     rolle === 'ungdom' ? { tekst: 'Oppdrag', ikon: ClipboardList } : { tekst: 'Avtaler', ikon: CalendarDays },
-  kart: () => ({ tekst: 'Kart', ikon: Map }),
   profil: () => ({ tekst: 'Profil', ikon: User }),
 };
 
@@ -64,7 +63,7 @@ function Fane({ tekst, ikon: Ikon, aktiv, onPress }: FaneProps) {
       onPress={onPress}
       style={[styles.fane, bakgrunn]}
     >
-      <Ikon size={24} color={farge} strokeWidth={ikonStrek} />
+      <Ikon size={26} color={farge} strokeWidth={ikonStrek} />
       <Tekst variant="fane" vekt={aktiv ? 700 : 600} farge={farge}>
         {tekst}
       </Tekst>
@@ -84,7 +83,9 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     gap: 2,
-    paddingVertical: 8,
+    paddingVertical: 10,
+    minHeight: 60,
+    justifyContent: 'center',
     borderRadius: 16,
   },
 });
