@@ -2,7 +2,7 @@ import { MapPin, Search, X, type LucideIcon } from 'lucide-react-native';
 import { createElement, type ReactNode } from 'react';
 import { Image, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
-import { ikonFor, nartekst, pristekst, type Annonse } from '../lib/annonser';
+import { ikonFor, nartekst, pristekst, statustekst, type Annonse } from '../lib/annonser';
 import { farger, ikonStrek, skrift } from '../lib/tema';
 import { Knapp } from './Knapp';
 import { Kort } from './Kort';
@@ -66,7 +66,15 @@ export function Annonsekort({ annonse, onPress, hoyre }: { annonse: Annonse; onP
     >
       <Annonsebilde annonse={annonse} storrelse={92} />
       <View style={styles.tekster}>
-        <Pille tekst={annonse.type === 'hjelp' ? 'Trenger hjelp' : annonse.pris === 0 ? 'Gis bort' : 'Til salgs'} variant={annonse.type === 'hjelp' ? 'lilla' : 'fersken'} />
+        <View style={styles.piller}>
+          <Pille
+            tekst={annonse.type === 'hjelp' ? 'Trenger hjelp' : annonse.pris === 0 ? 'Gis bort' : 'Til salgs'}
+            variant={annonse.type === 'hjelp' ? 'lilla' : 'fersken'}
+          />
+          {annonse.status !== 'ledig' && (
+            <Pille tekst={statustekst[annonse.status]} variant={annonse.status === 'ferdig' ? 'lilla' : 'gronn'} />
+          )}
+        </View>
         <Tekst variant="listetittel" vekt={700} numberOfLines={2}>
           {annonse.tittel}
         </Tekst>
@@ -155,6 +163,11 @@ const styles = StyleSheet.create({
   tekster: {
     flex: 1,
     gap: 3,
+  },
+  piller: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
   },
   sok: {
     flexDirection: 'row',

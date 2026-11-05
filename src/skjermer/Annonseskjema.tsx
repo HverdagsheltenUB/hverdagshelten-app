@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Camera, Eye, ImagePlus, PenLine, Send, Sparkles, X } from 'lucide-react-native';
+import { Camera, Eye, ImagePlus, LocateFixed, PenLine, Send, Sparkles, X } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
@@ -17,6 +17,7 @@ import {
   annonsekategorier,
   finnAnnonsekategori,
   foreslaKategori,
+  hentAdresse,
   lagreAnnonse,
   radFraUtkast,
   tilstander,
@@ -29,6 +30,7 @@ import {
 import { hentBilde, hentFlereBilder } from '../lib/bilde';
 import { useKonto } from '../lib/konto';
 import { gaTilbake, settRetning } from '../lib/overgang';
+import { hentMinPosisjon } from '../lib/posisjon';
 import { farger, ikonStrek } from '../lib/tema';
 import { harInnhold, hentUtkast, lagreUtkast, slettUtkast } from '../lib/utkast';
 
@@ -55,14 +57,23 @@ export function Annonseskjema({ eksisterende }: Props) {
   const [visAlleKategorier, setVisAlleKategorier] = useState(!eksisterende);
   const [lagrer, setLagrer] = useState(false);
   const [utkastLagret, setUtkastLagret] = useState(false);
+  const [finnerPosisjon, setFinnerPosisjon] = useState(false);
   const hentet = useRef(!ny);
+
+  // Hent den private adressen når en annonse endres.
+  useEffect(() => {
+    if (!eksisterende) return;
+    hentAdresse(eksisterende.id).then((a) => {
+      if (a) setU((f) => ({ ...f, adresse: a.adresse, lat: a.lat, lng: a.lng }));
+    });
+  }, [eksisterende]);
 
   // Hent et uferdig utkast fra sist, hvis det finnes.
   useEffect(() => {
     if (!ny || !brukerId) return;
     hentUtkast(brukerId).then((lagret) => {
       if (lagret && harInnhold(lagret)) {
-        setU(lagret);
+        setU({ ...tomtUtkast, ...lagret });
         setValgtSelv(Boolean(lagret.kategori));
         setVisAlleKategorier(!lagret.kategori);
         visToast('Vi fant utkastet ditt fra sist.');
@@ -391,11 +402,46 @@ export function Annonseskjema({ eksisterende }: Props) {
       )}
 
       <Tekstfelt
-        etikett="Sted (valgfritt)"
-        hjelpetekst="Skriv bare området, for eksempel «Sagene». Ikke full adresse."
+        etikett="Område (valgfritt)"
+        hjelpetekst="Vises for alle, for eksempel «Sagene»."
         value={u.sted}
         onChangeText={(sted) => sett({ sted: sted.slice(0, 80) })}
       />
+
+      <View style={styles.gruppe}>
+        <Tekstfelt
+          etikett="Adresse (valgfritt)"
+          hjelpetekst="Vises bare for den som aksepterer annonsen, så hen finner fram med Google Maps."
+          value={u.adresse}
+          onChangeText={(adresse) => sett({ adresse: adresse.slice(0, 200), lat: null, lng: null })}
+          autoComplete="street-address"
+          textContentType="fullStreetAddress"
+        />
+        <Knapp
+          liten
+          variant="sekundar"
+          ikon={LocateFixed}
+          tekst={u.lat != null ? 'Posisjonen din er lagt til ✓' : 'Bruk der jeg er nå'}
+          laster={finnerPosisjon}
+          style={styles.posisjonsknapp}
+          onPress={async () => {
+            setFinnerPosisjon(true);
+            const pos = await hentMinPosisjon();
+            setFinnerPosisjon(false);
+            if (pos.feil) {
+              visToast(pos.feil);
+              return;
+            }
+            sett({
+              adresse: pos.adresse ?? u.adresse ?? '',
+              lat: pos.lat ?? null,
+              lng: pos.lng ?? null,
+              sted: u.sted || pos.omrade || '',
+            });
+            visToast(pos.adresse ? `Fant adressen: ${pos.adresse}` : 'Posisjonen din er lagt til.');
+          }}
+        />
+      </View>
 
       {erTing && (
         <View style={styles.gruppe}>
@@ -471,5 +517,6 @@ const styles = StyleSheet.create({
   foreslatt: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   understrek: { textDecorationLine: 'underline' },
   bunnknapper: { gap: 8 },
+  posisjonsknapp: { flex: 0, alignSelf: 'flex-start' },
   sentrert: { textAlign: 'center' },
 });

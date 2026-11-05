@@ -1,6 +1,6 @@
 import { useFocusEffect, useIsFocused } from 'expo-router';
 import { CircleHelp } from 'lucide-react-native';
-import { Children, useCallback, useRef, useState, type ReactNode } from 'react';
+import { Children, isValidElement, useCallback, useRef, useState, type ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -22,10 +22,13 @@ type Props = {
   bunn?: ReactNode;
   // Dra ned for å hente på nytt.
   oppdater?: () => Promise<unknown>;
+  // Rull til bunnen når innholdet vokser, f.eks. i en chat.
+  holdNederst?: boolean;
 };
 
 // Felles ramme for alle skjermer: safe area øverst, rulling, og myk innkomst.
-export function Skjerm({ children, nokkel = '', tilbake, hjelp = true, bunn, oppdater }: Props) {
+export function Skjerm({ children, nokkel = '', tilbake, hjelp = true, bunn, oppdater, holdNederst = false }: Props) {
+  const rulleRef = useRef<{ scrollToEnd: (o?: { animated?: boolean }) => void } | null>(null);
   const [henter, setHenter] = useState(false);
   const innsett = useSafeAreaInsets();
   const redusertBevegelse = useReducedMotion();
@@ -53,6 +56,8 @@ export function Skjerm({ children, nokkel = '', tilbake, hjelp = true, bunn, opp
       <ScrollView
         style={styles.rulling}
         contentContainerStyle={[styles.innhold, { paddingTop: innsett.top + 12 }]}
+        ref={rulleRef as never}
+        onContentSizeChange={holdNederst ? () => rulleRef.current?.scrollToEnd({ animated: true }) : undefined}
         keyboardShouldPersistTaps="handled"
         refreshControl={
           oppdater ? (
@@ -79,8 +84,13 @@ export function Skjerm({ children, nokkel = '', tilbake, hjelp = true, bunn, opp
               {hjelp && <Hjelpknapp />}
             </View>
           )}
+          {/* Nøkkelen følger plassen i koden, ikke i listen. Ellers byttes feltene ut når noe
+              dukker opp eller forsvinner over dem, og tastaturet lukkes mens man skriver. */}
           {Children.toArray(children).map((barn, i) => (
-            <Animated.View key={i} entering={elementInn(i, redusertBevegelse)}>
+            <Animated.View
+              key={isValidElement(barn) && barn.key != null ? barn.key : i}
+              entering={elementInn(i, redusertBevegelse)}
+            >
               {barn}
             </Animated.View>
           ))}

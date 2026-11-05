@@ -1,6 +1,8 @@
 import { router } from 'expo-router';
 import {
   BookOpen,
+  Camera,
+  ClipboardList,
   Database,
   FileText,
   GraduationCap,
@@ -11,34 +13,71 @@ import {
   Pencil,
   ShieldCheck,
 } from 'lucide-react-native';
-import { StyleSheet, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { useBekreft } from '../../components/Dialog';
 import { Knapp } from '../../components/Knapp';
 import { Kort } from '../../components/Kort';
 import { Listevalg } from '../../components/Listevalg';
 import { Skjerm } from '../../components/Skjerm';
-import { Avatar, Pille, Seksjon } from '../../components/Smaabiter';
+import { Avatar, Pille, Seksjon, Statboks, Statrad } from '../../components/Smaabiter';
 import { Tekst } from '../../components/Tekst';
 import { BryterRad } from '../../components/Valg';
 import { useApp } from '../../lib/app-tilstand';
+import { useAnnonser } from '../../lib/annonser';
+import { hentFlereBilder } from '../../lib/bilde';
 import { kontaktEpost } from '../../lib/kontaktinfo';
 import { useKonto } from '../../lib/konto';
 import { gaFrem, gaTilFane, settRetning } from '../../lib/overgang';
+import { farger } from '../../lib/tema';
 
 const info = (side: string) => () => gaFrem({ pathname: '/info/[side]', params: { side } });
 
 export default function Profil() {
   const { data, settStorreTekst, nullstill } = useApp();
-  const { profil, epost, loggUt } = useKonto();
+  const { profil, epost, loggUt, byttProfilbilde, session } = useKonto();
+  const { visToast } = useApp();
   const bekreft = useBekreft();
+  const [lasterBilde, setLasterBilde] = useState(false);
+  const { annonser: oppdrag } = useAnnonser({ hjelperId: session?.user.id ?? 'ingen' });
+  const fullfort = oppdrag.filter((a) => a.status === 'ferdig');
+  const stjerner = fullfort.filter((a) => a.vurdering);
+  const snitt = stjerner.length
+    ? (stjerner.reduce((s, a) => s + (a.vurdering ?? 0), 0) / stjerner.length).toFixed(1).replace('.', ',')
+    : null;
+
+  async function byttBilde() {
+    const { uris, feil } = await hentFlereBilder(1);
+    if (feil) visToast(feil);
+    if (!uris[0]) return;
+    setLasterBilde(true);
+    const svar = await byttProfilbilde(uris[0]);
+    setLasterBilde(false);
+    visToast(svar.feil ?? 'Profilbildet er lagret.');
+  }
   const ungdom = profil?.rolle === 'ungdom';
   const navn = profil?.navn?.trim() || 'Uten navn';
 
   return (
     <Skjerm>
       <View style={styles.topp}>
-        <Avatar bokstav={navn[0]?.toUpperCase() ?? '?'} storrelse={72} />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={profil?.bilde ? 'Bytt profilbilde' : 'Legg til profilbilde'}
+          onPress={byttBilde}
+          style={styles.bildeknapp}
+        >
+          <Avatar bokstav={navn[0]?.toUpperCase() ?? '?'} storrelse={96} bilde={profil?.bilde} />
+          <View style={styles.kamera}>
+            {lasterBilde ? <ActivityIndicator color={farger.hvit} size="small" /> : <Camera size={18} color={farger.hvit} />}
+          </View>
+        </Pressable>
+        <Pressable accessibilityRole="button" onPress={byttBilde} hitSlop={8}>
+          <Tekst variant="brodLiten" vekt={700} farge={farger.lilla}>
+            {profil?.bilde ? 'Bytt profilbilde' : 'Legg til profilbilde'}
+          </Tekst>
+        </Pressable>
         <Tekst variant="tittel" style={styles.midtstilt}>
           {navn}
         </Tekst>
@@ -52,12 +91,27 @@ export default function Profil() {
         undertekst={profil?.omrade ? `Navn og område · ${profil.omrade}` : 'Navn, område og rolle'}
         onPress={() => gaFrem('/om-meg')}
       />
-      <Listevalg
-        ikon={Megaphone}
-        tittel="Mine annonser"
-        undertekst="Se, endre og slett det du har lagt ut"
-        onPress={() => gaTilFane('/mine')}
-      />
+      {ungdom ? (
+        <>
+          <Statrad>
+            <Statboks etikett="Oppdrag fullført" verdi={String(fullfort.length)} />
+            <Statboks etikett="Vurdering" verdi={snitt ?? '–'} stjerne={Boolean(snitt)} />
+          </Statrad>
+          <Listevalg
+            ikon={ClipboardList}
+            tittel="Mine oppdrag"
+            undertekst="Det du har akseptert"
+            onPress={() => gaTilFane('/mine')}
+          />
+        </>
+      ) : (
+        <Listevalg
+          ikon={Megaphone}
+          tittel="Mine annonser"
+          undertekst="Legg ut, endre og slett"
+          onPress={() => gaTilFane('/mine')}
+        />
+      )}
 
       <Kort>
         <BryterRad etikett="Større tekst" pa={data.storreTekst} onEndre={settStorreTekst} />
@@ -124,4 +178,18 @@ const styles = StyleSheet.create({
   topp: { alignItems: 'center', gap: 6, marginBottom: 4 },
   kontakt: { gap: 10, marginTop: 4 },
   midtstilt: { textAlign: 'center' },
+  bildeknapp: { position: 'relative' },
+  kamera: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+    width: 34,
+    height: 34,
+    borderRadius: 999,
+    backgroundColor: farger.lilla,
+    borderWidth: 2,
+    borderColor: farger.krem,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 });

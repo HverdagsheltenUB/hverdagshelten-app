@@ -1,6 +1,6 @@
 import { ArrowLeft, ArrowRight, Star } from 'lucide-react-native';
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 
 import { farger, ikonStrek } from '../lib/tema';
 import { Tekst } from './Tekst';
@@ -22,7 +22,16 @@ export function Pille({ tekst, variant = 'fersken' }: { tekst: string; variant?:
   );
 }
 
-export function Avatar({ bokstav, storrelse = 44 }: { bokstav: string; storrelse?: number }) {
+export function Avatar({ bokstav, storrelse = 44, bilde }: { bokstav: string; storrelse?: number; bilde?: string | null }) {
+  if (bilde) {
+    return (
+      <Image
+        source={{ uri: bilde }}
+        style={[styles.avatar, { width: storrelse, height: storrelse }]}
+        accessibilityIgnoresInvertColors
+      />
+    );
+  }
   return (
     <View style={[styles.avatar, { width: storrelse, height: storrelse }]}>
       <Tekst vekt={800} farge={farger.hvit} style={{ fontSize: storrelse * 0.42, lineHeight: storrelse * 0.55 }}>

@@ -10,6 +10,7 @@ export type Profil = {
   rolle: Rolle | null;
   omrade: string;
   opprettet: string;
+  bilde: string | null;
 };
 
 type Svar = { feil?: string };
@@ -23,8 +24,9 @@ type Konto = {
   opprettBruker: (v: { epost: string; passord: string; navn: string; rolle: Rolle }) => Promise<Svar>;
   loggInn: (epost: string, passord: string) => Promise<Svar>;
   loggUt: () => Promise<void>;
-  endreProfil: (endring: Partial<Pick<Profil, 'navn' | 'rolle' | 'omrade'>>) => Promise<Svar>;
+  endreProfil: (endring: Partial<Pick<Profil, 'navn' | 'rolle' | 'omrade' | 'bilde'>>) => Promise<Svar>;
   slettKonto: () => Promise<Svar>;
+  byttProfilbilde: (uri: string) => Promise<Svar>;
 };
 
 const KontoContext = createContext<Konto | null>(null);
@@ -58,7 +60,7 @@ export function KontoProvider({ children }: { children: ReactNode }) {
 
   const hentProfil = useCallback(
     async (id: string) => {
-      const { data } = await supabase.from('profiler').select('id, navn, rolle, omrade, opprettet').eq('id', id).maybeSingle();
+      const { data } = await supabase.from('profiler').select('id, navn, rolle, omrade, opprettet, bilde').eq('id', id).maybeSingle();
       if (data) {
         setProfil(data as Profil);
         // Rollen bestemmer om man ser eldre- eller ungdomsversjonen.
@@ -124,12 +126,43 @@ export function KontoProvider({ children }: { children: ReactNode }) {
           .from('profiler')
           .update(endring)
           .eq('id', brukerId)
-          .select('id, navn, rolle, omrade, opprettet')
+          .select('id, navn, rolle, omrade, opprettet, bilde')
           .single();
         if (error) return { feil: feiltekst(error) };
         setProfil(data as Profil);
         if (endring.rolle) endre((d) => ({ ...d, rolle: endring.rolle as Rolle }));
         return {};
+      },
+      byttProfilbilde: async (uri) => {
+        if (!brukerId) return { feil: 'Du er ikke logget inn.' };
+        try {
+          const svar = await fetch(uri);
+          const innhold = await svar.arrayBuffer();
+          const type = svar.headers.get('content-type') || 'image/jpeg';
+          const sti = `${brukerId}/profil-${Date.now().toString(36)}.${type.includes('png') ? 'png' : 'jpg'}`;
+          const { error } = await supabase.storage
+            .from('annonsebilder')
+            .upload(sti, innhold, { contentType: type.startsWith('image/') ? type : 'image/jpeg' });
+          if (error) return { feil: feiltekst(error) };
+          const adresse = supabase.storage.from('annonsebilder').getPublicUrl(sti).data.publicUrl;
+          const gammel = profil?.bilde;
+          const { data, error: feil } = await supabase
+            .from('profiler')
+            .update({ bilde: adresse })
+            .eq('id', brukerId)
+            .select('id, navn, rolle, omrade, opprettet, bilde')
+            .single();
+          if (feil) return { feil: feiltekst(feil) };
+          setProfil(data as Profil);
+          // Fjern det gamle bildet.
+          const merke = '/object/public/annonsebilder/';
+          if (gammel && gammel.includes(merke)) {
+            await supabase.storage.from('annonsebilder').remove([gammel.slice(gammel.indexOf(merke) + merke.length)]);
+          }
+          return {};
+        } catch (e) {
+          return { feil: feiltekst(e) };
+        }
       },
       slettKonto: async () => {
         if (!brukerId) return { feil: 'Du er ikke logget inn.' };

@@ -23,6 +23,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { feiltekst, supabase } from './supabase';
 
 export type Annonsetype = 'hjelp' | 'ting';
+export type Annonsestatus = 'ledig' | 'akseptert' | 'pa_vei' | 'ferdig';
+
+export type Personkort = { navn: string; omrade?: string; opprettet?: string; bilde: string | null };
 export type Levering = 'hentes' | 'sendes' | 'begge';
 
 export type Annonse = {
@@ -41,7 +44,21 @@ export type Annonse = {
   bilder: string[];
   opprettet: string;
   endret: string;
-  profiler: { navn: string; omrade: string; opprettet: string } | null;
+  status: Annonsestatus;
+  hjelper_id: string | null;
+  akseptert: string | null;
+  vurdering: number | null;
+  takk: string | null;
+  // Den som la ut annonsen, og hjelperen som har tatt den.
+  profiler: Personkort | null;
+  hjelper: Personkort | null;
+};
+
+export const statustekst: Record<Annonsestatus, string> = {
+  ledig: 'Ledig',
+  akseptert: 'Akseptert',
+  pa_vei: 'Hjelperen er på vei',
+  ferdig: 'Ferdig',
 };
 
 // Det brukeren fyller ut. Bilder kan være lokale (fra telefonen) eller allerede lastet opp.
@@ -56,6 +73,10 @@ export type Annonseutkast = {
   sted: string;
   levering: Levering | null;
   bilder: string[];
+  // Vises bare for den som aksepterer annonsen.
+  adresse: string;
+  lat: number | null;
+  lng: number | null;
 };
 
 export const tomtUtkast: Annonseutkast = {
@@ -69,6 +90,9 @@ export const tomtUtkast: Annonseutkast = {
   sted: '',
   levering: null,
   bilder: [],
+  adresse: '',
+  lat: null,
+  lng: null,
 };
 
 export type Annonsekategori = {
@@ -160,23 +184,28 @@ export function nartekst(iso: string) {
 // ─── Lese fra databasen ───────────────────────────────────────
 
 const felter =
-  'id, bruker_id, type, tittel, kategori, beskrivelse, pris, tilstand, storrelse, sted, levering, bilder, opprettet, endret, profiler(navn, omrade, opprettet)';
+  'id, bruker_id, type, tittel, kategori, beskrivelse, pris, tilstand, storrelse, sted, levering, bilder, opprettet, endret, status, hjelper_id, akseptert, vurdering, takk, ' +
+  'profiler:profiler!annonser_bruker_id_fkey(navn, omrade, opprettet, bilde), hjelper:profiler!annonser_hjelper_id_fkey(navn, bilde)';
 
 type Liste = { annonser: Annonse[]; laster: boolean; feil: string | null; oppdater: () => Promise<void> };
 
 // Henter annonser og henter på nytt hver gang skjermen vises, så man ser det andre har lagt ut.
 // Nye annonser fra andre dukker også opp mens man ser på listen.
-export function useAnnonser(filter?: { brukerId?: string }): Liste {
+export function useAnnonser(filter?: { brukerId?: string; hjelperId?: string; bareLedige?: boolean }): Liste {
   const [annonser, setAnnonser] = useState<Annonse[]>([]);
   const [laster, setLaster] = useState(true);
   const [feil, setFeil] = useState<string | null>(null);
   const brukerId = filter?.brukerId;
+  const hjelperId = filter?.hjelperId;
+  const bareLedige = filter?.bareLedige ?? false;
   const forrige = useRef(0);
 
   const oppdater = useCallback(async () => {
     const denne = ++forrige.current;
     let sporring = supabase.from('annonser').select(felter).order('opprettet', { ascending: false }).limit(200);
     if (brukerId) sporring = sporring.eq('bruker_id', brukerId);
+    if (hjelperId) sporring = sporring.eq('hjelper_id', hjelperId);
+    if (bareLedige) sporring = sporring.eq('status', 'ledig');
     const { data, error } = await sporring;
     if (denne !== forrige.current) return;
     if (error) setFeil(feiltekst(error));
@@ -185,7 +214,7 @@ export function useAnnonser(filter?: { brukerId?: string }): Liste {
       setAnnonser((data ?? []) as unknown as Annonse[]);
     }
     setLaster(false);
-  }, [brukerId]);
+  }, [brukerId, hjelperId, bareLedige]);
 
   useFocusEffect(
     useCallback(() => {
@@ -195,7 +224,7 @@ export function useAnnonser(filter?: { brukerId?: string }): Liste {
 
   useEffect(() => {
     const kanal = supabase
-      .channel(`annonser-${brukerId ?? 'alle'}-${Math.random().toString(36).slice(2)}`)
+      .channel(`annonser-${brukerId ?? hjelperId ?? 'alle'}-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'annonser' }, () => {
         oppdater().catch(() => {});
       })
@@ -203,7 +232,7 @@ export function useAnnonser(filter?: { brukerId?: string }): Liste {
     return () => {
       supabase.removeChannel(kanal);
     };
-  }, [brukerId, oppdater]);
+  }, [brukerId, hjelperId, oppdater]);
 
   return { annonser, laster, feil, oppdater };
 }
@@ -229,6 +258,20 @@ export function useAnnonse(id: string | undefined) {
       oppdater().catch(() => setLaster(false));
     }, [oppdater]),
   );
+
+  // Oppdaterer siden når status endres, f.eks. når hjelperen er på vei.
+  useEffect(() => {
+    if (!id) return;
+    const kanal = supabase
+      .channel(`annonse-${id}-${Math.random().toString(36).slice(2)}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'annonser', filter: `id=eq.${id}` }, () => {
+        oppdater().catch(() => {});
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(kanal);
+    };
+  }, [id, oppdater]);
 
   return { annonse, laster, feil, oppdater };
 }
@@ -283,6 +326,9 @@ export function utkastFraAnnonse(a: Annonse): Annonseutkast {
     sted: a.sted,
     levering: a.levering,
     bilder: a.bilder,
+    adresse: '',
+    lat: null,
+    lng: null,
   };
 }
 
@@ -322,16 +368,26 @@ export async function lagreAnnonse(
     }
     const rad = { ...radFraUtkast(utkast), bilder };
 
+    let id: string;
     if (eksisterende) {
       const { error } = await supabase.from('annonser').update(rad).eq('id', eksisterende.id);
       if (error) throw error;
       // Rydder bort bilder som er tatt ut av annonsen.
       await slettBilder(eksisterende.bilder.filter((b) => !bilder.includes(b))).catch(() => {});
-      return { id: eksisterende.id };
+      id = eksisterende.id;
+    } else {
+      const { data, error } = await supabase.from('annonser').insert(rad).select('id').single();
+      if (error) throw error;
+      id = data.id as string;
     }
-    const { data, error } = await supabase.from('annonser').insert(rad).select('id').single();
-    if (error) throw error;
-    return { id: data.id as string };
+    const { error: adressefeil } = await supabase.from('annonse_adresser').upsert({
+      annonse_id: id,
+      adresse: utkast.adresse.trim(),
+      lat: utkast.lat,
+      lng: utkast.lng,
+    });
+    if (adressefeil) throw adressefeil;
+    return { id };
   } catch (e) {
     await slettBilder(lastetOpp).catch(() => {});
     return { feil: feiltekst(e) };
@@ -343,4 +399,135 @@ export async function slettAnnonse(a: Annonse): Promise<{ feil?: string }> {
   if (error) return { feil: feiltekst(error) };
   await slettBilder(a.bilder).catch(() => {});
   return {};
+}
+
+// ─── Adresse, aksept og status ───────────────────────────────
+
+export type Adresse = { adresse: string; lat: number | null; lng: number | null };
+
+// Gir adressen bare til eieren og hjelperen (databasen sier nei til alle andre).
+export function useAdresse(annonseId: string | undefined, status: Annonsestatus | undefined, hjelperId: string | null | undefined) {
+  const [adresse, setAdresse] = useState<Adresse | null>(null);
+  useEffect(() => {
+    if (!annonseId) return;
+    let avbrutt = false;
+    supabase
+      .from('annonse_adresser')
+      .select('adresse, lat, lng')
+      .eq('annonse_id', annonseId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!avbrutt) setAdresse((data as Adresse | null) ?? null);
+      });
+    return () => {
+      avbrutt = true;
+    };
+  }, [annonseId, status, hjelperId]);
+  return adresse;
+}
+
+export async function hentAdresse(annonseId: string): Promise<Adresse | null> {
+  const { data } = await supabase.from('annonse_adresser').select('adresse, lat, lng').eq('annonse_id', annonseId).maybeSingle();
+  return (data as Adresse | null) ?? null;
+}
+
+// Google Maps med veibeskrivelse fra der du står nå.
+export function kartlenke(a: Adresse | null, sted: string) {
+  const mal =
+    a?.lat != null && a?.lng != null ? `${a.lat},${a.lng}` : a?.adresse?.trim() ? a.adresse.trim() : sted.trim();
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(mal)}&travelmode=walking`;
+}
+
+async function kall(funksjon: string, args: Record<string, unknown>): Promise<{ feil?: string }> {
+  const { error } = await supabase.rpc(funksjon, args);
+  if (!error) return {};
+  const m = error.message ?? '';
+  if (m.includes('ikke ledig')) return { feil: 'Noen andre rakk å ta denne annonsen før deg.' };
+  return { feil: feiltekst(error) };
+}
+
+export function aksepterAnnonse(id: string) {
+  return kall('aksepter_annonse', { annonse: id });
+}
+
+export function oppdaterOppdrag(id: string, status: 'pa_vei' | 'ferdig' | 'akseptert') {
+  return kall('oppdater_oppdrag', { annonse: id, ny_status: status });
+}
+
+export function slippAnnonse(id: string) {
+  return kall('slipp_annonse', { annonse: id });
+}
+
+export async function giTakk(id: string, vurdering: number, takk: string): Promise<{ feil?: string }> {
+  const { error } = await supabase.from('annonser').update({ vurdering, takk: takk.trim() || null }).eq('id', id);
+  return error ? { feil: feiltekst(error) } : {};
+}
+
+// ─── Chat ─────────────────────────────────────────────────────
+
+export type Melding = { id: string; annonse_id: string; avsender_id: string; tekst: string; opprettet: string };
+
+export function useMeldinger(annonseId: string | undefined) {
+  const [meldinger, setMeldinger] = useState<Melding[]>([]);
+  const [laster, setLaster] = useState(true);
+
+  const oppdater = useCallback(async () => {
+    if (!annonseId) return;
+    const { data } = await supabase
+      .from('meldinger')
+      .select('id, annonse_id, avsender_id, tekst, opprettet')
+      .eq('annonse_id', annonseId)
+      .order('opprettet', { ascending: true })
+      .limit(500);
+    setMeldinger((data ?? []) as Melding[]);
+    setLaster(false);
+  }, [annonseId]);
+
+  useFocusEffect(
+    useCallback(() => {
+      oppdater().catch(() => setLaster(false));
+    }, [oppdater]),
+  );
+
+  useEffect(() => {
+    if (!annonseId) return;
+    const kanal = supabase
+      .channel(`meldinger-${annonseId}-${Math.random().toString(36).slice(2)}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'meldinger', filter: `annonse_id=eq.${annonseId}` },
+        (endring) => {
+          const ny = endring.new as Melding;
+          setMeldinger((m) => (m.some((x) => x.id === ny.id) ? m : [...m, ny]));
+        },
+      )
+      .subscribe();
+    // Reserve i tilfelle sanntid ikke virker på nettet der man er: hent nye hvert 8. sekund.
+    const t = setInterval(() => oppdater().catch(() => {}), 8000);
+    return () => {
+      clearInterval(t);
+      supabase.removeChannel(kanal);
+    };
+  }, [annonseId, oppdater]);
+
+  const send = useCallback(
+    async (tekst: string): Promise<{ feil?: string }> => {
+      if (!annonseId || !tekst.trim()) return {};
+      const { data, error } = await supabase
+        .from('meldinger')
+        .insert({ annonse_id: annonseId, tekst: tekst.trim() })
+        .select('id, annonse_id, avsender_id, tekst, opprettet')
+        .single();
+      if (error) return { feil: feiltekst(error) };
+      setMeldinger((m) => (m.some((x) => x.id === data.id) ? m : [...m, data as Melding]));
+      return {};
+    },
+    [annonseId],
+  );
+
+  return { meldinger, laster, send, oppdater };
+}
+
+export async function sendMelding(annonseId: string, tekst: string) {
+  await supabase.from('meldinger').insert({ annonse_id: annonseId, tekst });
 }

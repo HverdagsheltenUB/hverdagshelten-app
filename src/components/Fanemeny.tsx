@@ -1,25 +1,27 @@
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
-import { House, Megaphone, User, type LucideIcon } from 'lucide-react-native';
+import { ClipboardList, House, Megaphone, User, type LucideIcon } from 'lucide-react-native';
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { interpolateColor, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
+import { useKonto } from '../lib/konto';
 import { settRetning } from '../lib/overgang';
 import { animasjon, farger, ikonStrek } from '../lib/tema';
 import { Tekst } from './Tekst';
 import { Trykkbar } from './Trykkbar';
 
-const faner: Record<string, () => { tekst: string; ikon: LucideIcon }> = {
+const faner: Record<string, (ungdom: boolean) => { tekst: string; ikon: LucideIcon }> = {
   index: () => ({ tekst: 'Hjem', ikon: House }),
-  mine: () => ({ tekst: 'Mine annonser', ikon: Megaphone }),
+  mine: (ungdom) => (ungdom ? { tekst: 'Mine oppdrag', ikon: ClipboardList } : { tekst: 'Mine annonser', ikon: Megaphone }),
   profil: () => ({ tekst: 'Profil', ikon: User }),
 };
 
 export function Fanemeny({ state, navigateToTab, insets }: BottomTabBarProps) {
+  const ungdom = useKonto().profil?.rolle === 'ungdom';
   return (
     <View style={[styles.meny, { paddingBottom: insets.bottom + 10 }]} accessibilityRole="tablist">
       {state.routes.map((route, i) => {
-        const fane = faner[route.name]?.();
+        const fane = faner[route.name]?.(ungdom);
         if (!fane) return null;
         return (
           <Fane

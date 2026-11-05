@@ -192,3 +192,156 @@ create policy "Send inn rapport" on public.rapporter
   for insert to authenticated with check ((select auth.uid()) = bruker_id);
 
 grant insert on public.rapporter to authenticated;
+
+-- ═════════════════════════════════════════════════════════════
+-- DEL 2 (6. november): aksept av oppdrag, chat, adresse og profilbilde
+-- ═════════════════════════════════════════════════════════════
+
+alter table public.profiler add column if not exists bilde text check (char_length(bilde) <= 500);
+
+-- Status på annonsen: ledig → akseptert → pa_vei → ferdig
+alter table public.annonser add column if not exists status text not null default 'ledig';
+alter table public.annonser drop constraint if exists annonser_status_check;
+alter table public.annonser add constraint annonser_status_check
+  check (status in ('ledig', 'akseptert', 'pa_vei', 'ferdig'));
+alter table public.annonser add column if not exists hjelper_id uuid references public.profiler (id) on delete set null;
+alter table public.annonser add column if not exists akseptert timestamptz;
+alter table public.annonser add column if not exists vurdering smallint check (vurdering between 1 and 5);
+alter table public.annonser add column if not exists takk text check (char_length(takk) <= 500);
+create index if not exists annonser_hjelper_idx on public.annonser (hjelper_id);
+
+-- Bare de som trenger hjelp (rolle «eldre») kan legge ut annonser.
+drop policy if exists "Legg ut egne annonser" on public.annonser;
+create policy "Legg ut egne annonser" on public.annonser
+  for insert to authenticated
+  with check (
+    (select auth.uid()) = bruker_id
+    and exists (select 1 from public.profiler p where p.id = (select auth.uid()) and p.rolle = 'eldre')
+  );
+
+-- Hjelperen endrer status gjennom disse funksjonene, aldri direkte i tabellen.
+create or replace function public.aksepter_annonse(annonse uuid)
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  if auth.uid() is null then raise exception 'Ikke innlogget'; end if;
+  update public.annonser
+     set status = 'akseptert', hjelper_id = auth.uid(), akseptert = now()
+   where id = annonse and status = 'ledig' and hjelper_id is null and bruker_id <> auth.uid();
+  if not found then raise exception 'Annonsen er ikke ledig lenger'; end if;
+end $$;
+
+create or replace function public.oppdater_oppdrag(annonse uuid, ny_status text)
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  if ny_status not in ('akseptert', 'pa_vei', 'ferdig') then raise exception 'Ugyldig status'; end if;
+  update public.annonser set status = ny_status
+   where id = annonse and hjelper_id = auth.uid() and status <> 'ledig';
+  if not found then raise exception 'Du har ikke dette oppdraget'; end if;
+end $$;
+
+-- Hjelperen ombestemmer seg, eller den som la ut annonsen gjør den ledig igjen.
+create or replace function public.slipp_annonse(annonse uuid)
+returns void language plpgsql security definer set search_path = '' as $$
+begin
+  update public.annonser set status = 'ledig', hjelper_id = null, akseptert = null
+   where id = annonse and status in ('akseptert', 'pa_vei')
+     and (hjelper_id = auth.uid() or bruker_id = auth.uid());
+  if not found then raise exception 'Kan ikke slippe dette oppdraget'; end if;
+end $$;
+
+revoke all on function public.aksepter_annonse(uuid) from public, anon;
+revoke all on function public.oppdater_oppdrag(uuid, text) from public, anon;
+revoke all on function public.slipp_annonse(uuid) from public, anon;
+grant execute on function public.aksepter_annonse(uuid) to authenticated;
+grant execute on function public.oppdater_oppdrag(uuid, text) to authenticated;
+grant execute on function public.slipp_annonse(uuid) to authenticated;
+
+-- Eieren kan ikke selv sette en hjelper eller hoppe over statusene.
+create or replace function public.annonse_endret()
+returns trigger language plpgsql set search_path = '' as $$
+begin
+  new.endret := now();
+  new.opprettet := old.opprettet;
+  if current_user = 'authenticated' then
+    new.hjelper_id := old.hjelper_id;
+    new.status := old.status;
+    new.akseptert := old.akseptert;
+    -- Stjerner og takk kan bare gis når oppdraget er ferdig.
+    if old.status <> 'ferdig' then
+      new.vurdering := old.vurdering;
+      new.takk := old.takk;
+    end if;
+  end if;
+  return new;
+end $$;
+
+
+-- ─── Adresse: bare eieren og den som har akseptert, ser den ───
+create table if not exists public.annonse_adresser (
+  annonse_id uuid primary key references public.annonser (id) on delete cascade,
+  adresse text not null default '' check (char_length(adresse) <= 200),
+  lat double precision check (lat between -90 and 90),
+  lng double precision check (lng between -180 and 180)
+);
+
+alter table public.annonse_adresser enable row level security;
+
+drop policy if exists "Se adresse" on public.annonse_adresser;
+create policy "Se adresse" on public.annonse_adresser
+  for select to authenticated
+  using (exists (
+    select 1 from public.annonser a
+     where a.id = annonse_id
+       and ((select auth.uid()) = a.bruker_id or ((select auth.uid()) = a.hjelper_id and a.status <> 'ferdig'))
+  ));
+
+drop policy if exists "Eier lagrer adresse" on public.annonse_adresser;
+create policy "Eier lagrer adresse" on public.annonse_adresser
+  for all to authenticated
+  using (exists (select 1 from public.annonser a where a.id = annonse_id and a.bruker_id = (select auth.uid())))
+  with check (exists (select 1 from public.annonser a where a.id = annonse_id and a.bruker_id = (select auth.uid())));
+
+grant select, insert, update, delete on public.annonse_adresser to authenticated;
+
+-- ─── Chat mellom den som la ut annonsen og hjelperen ───
+create table if not exists public.meldinger (
+  id uuid primary key default gen_random_uuid(),
+  annonse_id uuid not null references public.annonser (id) on delete cascade,
+  avsender_id uuid not null default auth.uid() references public.profiler (id) on delete cascade,
+  tekst text not null check (char_length(btrim(tekst)) between 1 and 2000),
+  opprettet timestamptz not null default now()
+);
+create index if not exists meldinger_annonse_idx on public.meldinger (annonse_id, opprettet);
+
+alter table public.meldinger enable row level security;
+
+drop policy if exists "Se egne samtaler" on public.meldinger;
+create policy "Se egne samtaler" on public.meldinger
+  for select to authenticated
+  using (exists (
+    select 1 from public.annonser a
+     where a.id = annonse_id and (select auth.uid()) in (a.bruker_id, a.hjelper_id)
+  ));
+
+drop policy if exists "Skriv i egne samtaler" on public.meldinger;
+create policy "Skriv i egne samtaler" on public.meldinger
+  for insert to authenticated
+  with check (
+    avsender_id = (select auth.uid())
+    and exists (
+      select 1 from public.annonser a
+       where a.id = annonse_id and a.hjelper_id is not null
+         and (select auth.uid()) in (a.bruker_id, a.hjelper_id)
+    )
+  );
+
+grant select, insert on public.meldinger to authenticated;
+
+do $$
+begin
+  if exists (select 1 from pg_publication where pubname = 'supabase_realtime')
+     and not exists (select 1 from pg_publication_tables
+                     where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'meldinger') then
+    alter publication supabase_realtime add table public.meldinger;
+  end if;
+end $$;

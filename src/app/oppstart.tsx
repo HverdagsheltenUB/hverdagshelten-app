@@ -319,8 +319,8 @@ export default function Oppstart() {
           },
           {
             ikon: BadgeCheck,
-            tittel: 'Legg ut selv',
-            tekst: 'Trykk «Legg ut annonse» hvis du vil selge eller gi bort noe.',
+            tittel: 'Aksepter og hjelp',
+            tekst: 'Når du aksepterer, får du adressen, «Vis veien» og en chat med den som trenger hjelp.',
           },
           {
             ikon: MessageCircleHeart,
@@ -332,12 +332,12 @@ export default function Oppstart() {
           {
             ikon: Heart,
             tittel: 'Be om hjelp',
-            tekst: 'Trykk «Legg ut annonse» og skriv hva du trenger hjelp med. Det tar et minutt.',
+            tekst: 'Gå til «Mine annonser» og trykk «Legg ut annonse». Skriv hva du trenger hjelp med. Det tar et minutt.',
           },
           {
             ikon: CalendarDays,
-            tittel: 'Se annonsene dine',
-            tekst: 'Under «Mine annonser» kan du endre eller slette det du har lagt ut.',
+            tittel: 'Snakk med hjelperen',
+            tekst: 'Når en hjelper aksepterer, kan dere skrive sammen, og du ser når hjelperen er på vei.',
           },
           {
             ikon: MessageCircleHeart,

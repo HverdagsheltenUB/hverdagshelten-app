@@ -1,9 +1,8 @@
-import { Plus, SearchX, Sparkles, WifiOff } from 'lucide-react-native';
+import { SearchX, Sparkles, WifiOff } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Annonsekort, Sokefelt, Tomtilstand } from '../../components/Annonse';
-import { Knapp } from '../../components/Knapp';
 import { Skjerm } from '../../components/Skjerm';
 import { Overskrift, Pille, Seksjon } from '../../components/Smaabiter';
 import { Tekst } from '../../components/Tekst';
@@ -25,7 +24,8 @@ function passer(a: Annonse, sok: string) {
 // Forsiden: alle annonser som brukerne har lagt ut, med søk og kategorier.
 export default function Hjem() {
   const { profil } = useKonto();
-  const { annonser, laster, feil, oppdater } = useAnnonser();
+  // Forsiden viser bare annonser som ingen har akseptert ennå.
+  const { annonser, laster, feil, oppdater } = useAnnonser({ bareLedige: true });
   const [sok, setSok] = useState('');
   const [type, setType] = useState<Typefilter>('alle');
   const [kategori, setKategori] = useState<string | null>(null);
@@ -49,11 +49,11 @@ export default function Hjem() {
       <Overskrift
         tittel={navn ? `Hei, ${navn}.` : 'Hei!'}
         undertekst={
-          ungdom ? 'Se hvem som trenger hjelp i nabolaget.' : 'Finn hjelp, eller gi bort og selg ting i nabolaget.'
+          ungdom
+            ? 'Se hvem som trenger hjelp i nabolaget, og aksepter et oppdrag.'
+            : 'Her ser du hva naboene dine har lagt ut. Egne annonser finner du under «Mine annonser».'
         }
       />
-
-      <Knapp ikon={Plus} tekst="Legg ut annonse" onPress={() => gaFrem('/annonse/ny')} />
 
       <Sokefelt verdi={sok} onEndre={setSok} />
 
@@ -95,9 +95,12 @@ export default function Hjem() {
       ) : annonser.length === 0 ? (
         <Tomtilstand
           ikon={Sparkles}
-          tittel="Ingen annonser ennå"
-          tekst="Her kommer annonsene fra folk i nabolaget. Bli den første som legger ut noe!"
-          knapp={{ tekst: 'Legg ut den første annonsen', ikon: Plus, onPress: () => gaFrem('/annonse/ny') }}
+          tittel="Ingen ledige annonser akkurat nå"
+          tekst={
+            ungdom
+              ? 'Når noen i nabolaget trenger hjelp, dukker det opp her. Dra ned for å se etter nye.'
+              : 'Når noen legger ut noe, dukker det opp her. Du legger ut egne annonser under «Mine annonser».'
+          }
         />
       ) : filtrert.length === 0 ? (
         <Tomtilstand
@@ -106,7 +109,7 @@ export default function Hjem() {
           tekst={
             sok.trim()
               ? 'Prøv et annet ord, eller se alle annonsene.'
-              : 'Det er ingen som har lagt ut noe her ennå. Kanskje du vil være den første?'
+              : 'Det er ingen ledige annonser her akkurat nå.'
           }
           knapp={{
             tekst: 'Vis alle annonser',

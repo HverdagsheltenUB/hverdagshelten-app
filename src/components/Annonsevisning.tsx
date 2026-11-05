@@ -1,7 +1,16 @@
 import { createElement, useState } from 'react';
 import { Image, ScrollView, StyleSheet, useWindowDimensions, View } from 'react-native';
 
-import { ikonFor, leveringstekst, nartekst, pristekst, type Annonsetype, type Levering } from '../lib/annonser';
+import {
+  ikonFor,
+  leveringstekst,
+  nartekst,
+  pristekst,
+  statustekst,
+  type Annonsestatus,
+  type Annonsetype,
+  type Levering,
+} from '../lib/annonser';
 import { farger, ikonStrek } from '../lib/tema';
 import { Stedlinje } from './Annonse';
 import { Kort, Skillelinje } from './Kort';
@@ -21,7 +30,9 @@ export type Visning = {
   bilder: string[];
   opprettet?: string;
   navn: string;
+  bilde?: string | null;
   medlemSiden?: string;
+  status?: Annonsestatus;
 };
 
 const mndNavn = ['januar', 'februar', 'mars', 'april', 'mai', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'desember'];
@@ -76,10 +87,15 @@ export function Annonsevisning({ a }: { a: Visning }) {
       )}
 
       <View style={styles.topp}>
-        <Pille
-          tekst={a.type === 'hjelp' ? 'Trenger hjelp' : a.pris === 0 ? 'Gis bort' : 'Til salgs'}
-          variant={a.type === 'hjelp' ? 'lilla' : 'fersken'}
-        />
+        <View style={styles.piller}>
+          <Pille
+            tekst={a.type === 'hjelp' ? 'Trenger hjelp' : a.pris === 0 ? 'Gis bort' : 'Til salgs'}
+            variant={a.type === 'hjelp' ? 'lilla' : 'fersken'}
+          />
+          {a.status && a.status !== 'ledig' && (
+            <Pille tekst={statustekst[a.status]} variant={a.status === 'ferdig' ? 'lilla' : 'gronn'} />
+          )}
+        </View>
         <Tekst variant="tittel" accessibilityRole="header">
           {a.tittel || 'Tittel mangler'}
         </Tekst>
@@ -112,7 +128,7 @@ export function Annonsevisning({ a }: { a: Visning }) {
       </Kort>
 
       <Kort myk style={styles.person}>
-        <Avatar bokstav={(a.navn.trim()[0] ?? '?').toUpperCase()} storrelse={52} />
+        <Avatar bokstav={(a.navn.trim()[0] ?? '?').toUpperCase()} storrelse={52} bilde={a.bilde} />
         <View style={styles.flex}>
           <Tekst variant="under" vekt={600}>
             Lagt ut av
@@ -143,6 +159,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   topp: { gap: 6 },
+  piller: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   beskrivelse: { lineHeight: 26 },
   detalj: { gap: 12 },
   detaljrad: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 12 },

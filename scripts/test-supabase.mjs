@@ -58,6 +58,11 @@ try {
   sjekk('A kan publisere annonse', !ins.error, ins.error?.message);
   const annonseId = ins.data?.id;
 
+  const adr = await a.from('annonse_adresser').upsert({ annonse_id: annonseId, adresse: 'Testveien 1, 0001 Oslo', lat: 59.9, lng: 10.75 });
+  sjekk('A kan lagre privat adresse', !adr.error, adr.error?.message);
+  const egen = await b.from('annonser').insert({ type: 'hjelp', tittel: 'Hjelper vil legge ut', kategori: 'Handling' });
+  sjekk('B (hjelper) kan ikke legge ut annonser', Boolean(egen.error));
+
   // 5. B ser annonsen, med navnet til A
   const { data: sett, error: settFeil } = await b.from('annonser').select('id, tittel, bilder, profiler(navn)').eq('id', annonseId).single();
   sjekk('B ser As annonse med navn', !settFeil && sett?.profiler?.navn === 'Test Tone' && sett.bilder.length === 1, settFeil?.message);
@@ -70,10 +75,42 @@ try {
   const lure = await b.from('annonser').insert({ bruker_id: idA, type: 'hjelp', tittel: 'Falsk', kategori: 'Handling' });
   sjekk('B kan ikke legge ut annonse i As navn', Boolean(lure.error));
 
+  // 6b. Aksept, adresse, chat og status
+  const forAdr = await b.from('annonse_adresser').select('adresse').eq('annonse_id', annonseId);
+  sjekk('B ser ikke adressen før aksept', forAdr.data?.length === 0, JSON.stringify(forAdr.data));
+  const forChat = await b.from('meldinger').insert({ annonse_id: annonseId, tekst: 'for tidlig' });
+  sjekk('B kan ikke skrive før aksept', Boolean(forChat.error));
+  const aks = await b.rpc('aksepter_annonse', { annonse: annonseId });
+  sjekk('B kan akseptere annonsen', !aks.error, aks.error?.message);
+  const igjen = await b.rpc('aksepter_annonse', { annonse: annonseId });
+  sjekk('Annonsen kan ikke aksepteres to ganger', Boolean(igjen.error));
+  const etterAdr = await b.from('annonse_adresser').select('adresse').eq('annonse_id', annonseId).single();
+  sjekk('B ser adressen etter aksept', etterAdr.data?.adresse === 'Testveien 1, 0001 Oslo', etterAdr.error?.message);
+  const m1 = await b.from('meldinger').insert({ annonse_id: annonseId, tekst: 'Hei, jeg har tatt oppdraget!' });
+  sjekk('B kan skrive i chatten', !m1.error, m1.error?.message);
+  const lest = await a.from('meldinger').select('tekst, avsender_id').eq('annonse_id', annonseId);
+  sjekk('A ser meldingen fra B', lest.data?.length === 1 && lest.data[0].avsender_id === idB, JSON.stringify(lest.data));
+  const m2 = await a.from('meldinger').insert({ annonse_id: annonseId, tekst: 'Så fint!' });
+  sjekk('A kan svare i chatten', !m2.error, m2.error?.message);
+  const juks = await a.from('annonser').update({ status: 'ferdig' }).eq('id', annonseId);
+  const { data: st0 } = await a.from('annonser').select('status').eq('id', annonseId).single();
+  sjekk('A kan ikke hoppe over status selv', st0?.status === 'akseptert', JSON.stringify({ st0, e: juks.error?.message }));
+  const pv = await b.rpc('oppdater_oppdrag', { annonse: annonseId, ny_status: 'pa_vei' });
+  const { data: st1 } = await a.from('annonser').select('status, hjelper:profiler!annonser_hjelper_id_fkey(navn)').eq('id', annonseId).single();
+  sjekk('B kan si «på vei», og A ser det', !pv.error && st1?.status === 'pa_vei' && st1?.hjelper?.navn === 'Test Didrik', JSON.stringify(st1));
+
   // 7. A endrer og sletter
   await a.from('annonser').update({ pris: 400 }).eq('id', annonseId);
   const { data: endret } = await b.from('annonser').select('pris').eq('id', annonseId).single();
   sjekk('A kan endre, og B ser endringen', endret?.pris === 400, JSON.stringify(endret));
+  const fe = await b.rpc('oppdater_oppdrag', { annonse: annonseId, ny_status: 'ferdig' });
+  const tk = await a.from('annonser').update({ vurdering: 5, takk: 'Tusen takk' }).eq('id', annonseId);
+  const { data: st2 } = await b.from('annonser').select('status, vurdering, takk').eq('id', annonseId).single();
+  sjekk('B kan si ferdig, og A kan gi stjerner', !fe.error && !tk.error && st2?.status === 'ferdig' && st2?.vurdering === 5, JSON.stringify(st2));
+  const adrFerdig = await b.from('annonse_adresser').select('adresse').eq('annonse_id', annonseId);
+  sjekk('Adressen skjules for B når oppdraget er ferdig', adrFerdig.data?.length === 0);
+  const pb = await a.from('profiler').update({ bilde: bildeUrl }).eq('id', idA).select('bilde').single();
+  sjekk('A kan lagre profilbilde', pb.data?.bilde === bildeUrl, pb.error?.message);
   const sl = await a.from('annonser').delete().eq('id', annonseId);
   const { data: borte } = await b.from('annonser').select('id').eq('id', annonseId);
   sjekk('A kan slette, og annonsen er borte for B', !sl.error && borte?.length === 0, sl.error?.message);
