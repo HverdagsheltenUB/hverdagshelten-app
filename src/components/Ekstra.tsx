@@ -5,18 +5,10 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Path, Rect } from 'react-native-svg';
 
-import type { Status } from '../lib/eksempeldata';
-import { statustekst } from '../lib/utvalg';
 import { farger, ikonStrek } from '../lib/tema';
 import { useBekreft } from './Dialog';
 import { Knapp } from './Knapp';
-import { Pille } from './Smaabiter';
 import { Tekst } from './Tekst';
-
-export function Statuspille({ status }: { status: Status }) {
-  const variant = status === 'bekreftet' ? 'gronn' : status === 'ferdig' ? 'lilla' : 'fersken';
-  return <Pille tekst={statustekst[status]} variant={variant} />;
-}
 
 // «Sjekket av Hverdagshelten» på hjelpere som er godkjent.
 export function SjekketMerke() {

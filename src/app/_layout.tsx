@@ -12,6 +12,7 @@ import { ActivityIndicator, Image, StyleSheet, View } from 'react-native';
 import { DialogProvider } from '../components/Dialog';
 import { Toast } from '../components/Toast';
 import { AppProvider, useApp } from '../lib/app-tilstand';
+import { KontoProvider, useKonto } from '../lib/konto';
 import { farger } from '../lib/tema';
 
 export default function RootLayout() {
@@ -24,15 +25,18 @@ export default function RootLayout() {
 
   return (
     <AppProvider>
-      <DialogProvider>{!lastet && !feil ? <Oppstartsbilde /> : <Innhold />}</DialogProvider>
+      <KontoProvider>
+        <DialogProvider>{!lastet && !feil ? <Oppstartsbilde /> : <Innhold />}</DialogProvider>
+      </KontoProvider>
     </AppProvider>
   );
 }
 
 function Innhold() {
   const { lastet } = useApp();
-  // Vent til det som er lagret på telefonen er hentet, så ingenting blinker.
-  if (!lastet) return <Oppstartsbilde />;
+  const konto = useKonto();
+  // Vent til det som er lagret på telefonen og innloggingen er hentet, så ingenting blinker.
+  if (!lastet || konto.laster) return <Oppstartsbilde />;
 
   return (
     <>

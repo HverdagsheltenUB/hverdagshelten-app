@@ -1,4 +1,4 @@
-import { Check } from 'lucide-react-native';
+import { Check, HandHeart, Heart } from 'lucide-react-native';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
@@ -9,75 +9,65 @@ import { Tekstfelt } from '../components/Skjema';
 import { Overskrift } from '../components/Smaabiter';
 import { Tekst } from '../components/Tekst';
 import { Chip, Chiprad } from '../components/Valg';
-import { useApp } from '../lib/app-tilstand';
-import { tingAViteValg } from '../lib/eksempeldata';
+import { useApp, type Rolle } from '../lib/app-tilstand';
+import { useKonto } from '../lib/konto';
 import { gaTilbake } from '../lib/overgang';
 
+// Endre navn, område og rolle. Lagres i kontoen, så det følger med til andre telefoner.
 export default function OmMeg() {
-  const { data, endre, visToast } = useApp();
-  const [skjema, setSkjema] = useState(data.eldre);
-  const sett = (felt: 'navn' | 'adresse' | 'omrade' | 'telefon' | 'annetAVite') => (verdi: string) =>
-    setSkjema((s) => ({ ...s, [felt]: verdi }));
-
-  function bytt(ting: string) {
-    setSkjema((s) => ({
-      ...s,
-      tingAVite: s.tingAVite.includes(ting) ? s.tingAVite.filter((t) => t !== ting) : [...s.tingAVite, ting],
-    }));
-  }
+  const { visToast } = useApp();
+  const { profil, endreProfil } = useKonto();
+  const [navn, setNavn] = useState(profil?.navn ?? '');
+  const [omrade, setOmrade] = useState(profil?.omrade ?? '');
+  const [rolle, setRolle] = useState<Rolle | null>(profil?.rolle ?? null);
+  const [lagrer, setLagrer] = useState(false);
+  const klar = navn.trim().length >= 2;
 
   return (
     <Skjerm tilbake={{ tekst: 'Til profilen', onPress: () => gaTilbake('/profil') }}>
-      <Overskrift tittel="Om meg" />
-      <Tekstfelt etikett="Navn" value={skjema.navn} onChangeText={sett('navn')} autoComplete="name" />
+      <Overskrift tittel="Om meg" undertekst="Navnet ditt vises på annonsene du legger ut." />
+      <Tekstfelt etikett="Navn" value={navn} onChangeText={setNavn} autoComplete="name" maxLength={80} />
       <Tekstfelt
-        etikett="Adresse"
-        value={skjema.adresse}
-        onChangeText={sett('adresse')}
-        autoComplete="street-address"
+        etikett="Område eller bydel"
+        hjelpetekst="Brukes som forslag til «Sted» når du legger ut en annonse."
+        value={omrade}
+        onChangeText={setOmrade}
+        maxLength={80}
       />
-      <Tekstfelt etikett="Område eller bydel" value={skjema.omrade} onChangeText={sett('omrade')} />
-      <Tekstfelt
-        etikett="Telefonnummer"
-        value={skjema.telefon}
-        onChangeText={sett('telefon')}
-        keyboardType="phone-pad"
-      />
-
       <View style={styles.gruppe}>
-        <Tekst variant="mellomtittel">Ting hjelperen bør vite</Tekst>
-        <Tekst variant="under">Velg det som passer. Du bestemmer selv hva du vil dele.</Tekst>
+        <Tekst variant="brodLiten" vekt={700}>
+          Jeg bruker appen fordi …
+        </Tekst>
         <Chiprad>
-          {tingAViteValg.map((t) => (
-            <Chip key={t} tekst={t} valgt={skjema.tingAVite.includes(t)} onPress={() => bytt(t)} />
-          ))}
+          <Chip tekst="Jeg trenger hjelp" valgt={rolle === 'eldre'} onPress={() => setRolle('eldre')} />
+          <Chip tekst="Jeg vil hjelpe" valgt={rolle === 'ungdom'} onPress={() => setRolle('ungdom')} />
         </Chiprad>
       </View>
-      <Tekstfelt
-        etikett="Noe annet hjelperen bør vite (valgfritt)"
-        placeholder="For eksempel: katten må ikke slippe ut"
-        flereLinjer
-        value={skjema.annetAVite}
-        onChangeText={sett('annetAVite')}
-      />
-      <Infoboks tekst="Ikke skriv helseopplysninger eller medisiner her. Hjelperen ser dette bare når dere har en avtale." />
-
       <Knapp
         ikon={Check}
         tekst="Lagre"
-        onPress={() => {
-          const fornavn = skjema.navn.trim().split(' ')[0] || data.eldre.fornavn;
-          endre((d) => ({ ...d, eldre: { ...skjema, fornavn } }));
-          gaTilbake('/profil');
+        deaktivert={!klar}
+        laster={lagrer}
+        onPress={async () => {
+          setLagrer(true);
+          const svar = await endreProfil({ navn: navn.trim(), omrade: omrade.trim(), rolle: rolle ?? undefined });
+          setLagrer(false);
+          if (svar.feil) {
+            visToast(svar.feil);
+            return;
+          }
           visToast('Lagret.');
+          gaTilbake('/profil');
         }}
+      />
+      <Infoboks
+        ikon={rolle === 'ungdom' ? HandHeart : Heart}
+        tekst="Vi viser aldri adressen eller telefonnummeret ditt i appen. Skriv bare området på annonsene."
       />
     </Skjerm>
   );
 }
 
 const styles = StyleSheet.create({
-  gruppe: {
-    gap: 10,
-  },
+  gruppe: { gap: 10 },
 });

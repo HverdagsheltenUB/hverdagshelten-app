@@ -1,4 +1,4 @@
-import { kontaktEpost } from './eksempeldata';
+import { kontaktEpost } from './kontaktinfo';
 import { priser, regler } from './tema';
 
 // Tekstene på infosidene. Skrevet enkelt, uten juridiske ord der det går.
@@ -38,11 +38,10 @@ export const infosider: Record<string, Infoside> = {
       {
         tittel: 'Hva lagrer vi, og hvorfor?',
         punkter: [
-          'Navn, telefonnummer og adresse fra Vipps, så vi vet hvem du er og hvor hjelpen skal være.',
-          'Avtalene dine, så hjelperen vet hva og når.',
-          'Det du selv skriver, som beskjeder og handlelister.',
-          'For ungdom: alder, at du er bekreftet med BankID, og hvem som er foresatt.',
-          'Betalinger og kvitteringer, fordi regnskapsloven krever det.',
+          'Navn, e-post og område, så du har en egen konto og andre vet hvem som har lagt ut en annonse.',
+          'Passordet ditt, kryptert. Ingen i teamet kan lese det.',
+          'Annonsene og bildene du legger ut, så andre i nabolaget kan se dem.',
+          'Det du melder fra om, så teamet kan følge det opp.',
         ],
       },
       {
@@ -52,25 +51,22 @@ export const infosider: Record<string, Infoside> = {
       {
         tittel: 'Hvem ser hva?',
         punkter: [
-          'Før en avtale er bekreftet, ser hjelperen bare området (for eksempel «Kalbakken») og omtrent hvor langt unna det er.',
-          'Full adresse og telefonnummer vises bare til hjelperen som har fått oppdraget, og bare til oppdraget er ferdig.',
-          'Pårørende du har lagt til, ser avtalene og kvitteringene dine.',
-          'Foresatte ser hvilke oppdrag ungdommen har tatt.',
+          'Alle som er logget inn, ser annonsene, navnet ditt og området du har skrevet på annonsen.',
+          'E-postadressen din vises aldri til andre brukere.',
           'Teamet ser det vi trenger for å hjelpe deg og følge opp hvis noe går galt.',
         ],
       },
       {
         tittel: 'Hvor lagres det?',
         avsnitt: [
-          'Opplysningene lagres hos Supabase på servere i EU. Vi har databehandleravtale med alle tjenester vi bruker. Telefonen din har en kopi, så du ser avtalene selv uten nett.',
+          'Opplysningene lagres hos Supabase på servere i EU. Vi har databehandleravtale med alle tjenester vi bruker.',
         ],
       },
       {
         tittel: 'Hvor lenge?',
         punkter: [
-          'Gamle avtaler slettes 12 måneder etter besøket.',
-          'Kvitteringer tas vare på i fem år, fordi regnskapsloven krever det.',
-          'Sletter du kontoen, sletter vi resten med en gang.',
+          'Annonser ligger ute til du sletter dem.',
+          'Sletter du kontoen, sletter vi profilen, annonsene og bildene dine med en gang.',
         ],
       },
       {

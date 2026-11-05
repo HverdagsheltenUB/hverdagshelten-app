@@ -10,7 +10,7 @@ import { Tekstfelt } from '../components/Skjema';
 import { Avatar, Overskrift, Seksjon } from '../components/Smaabiter';
 import { Tekst } from '../components/Tekst';
 import { useApp } from '../lib/app-tilstand';
-import { kontaktEpost, kontaktperson } from '../lib/eksempeldata';
+import { kontaktEpost, kontaktperson } from '../lib/kontaktinfo';
 import { finnSvar, vanligeSporsmal } from '../lib/svarhjelper';
 import { farger, ikonStrek } from '../lib/tema';
 

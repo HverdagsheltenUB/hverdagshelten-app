@@ -1,29 +1,25 @@
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
-import { CalendarDays, ClipboardList, House, User, type LucideIcon } from 'lucide-react-native';
+import { House, Megaphone, User, type LucideIcon } from 'lucide-react-native';
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { interpolateColor, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
-import { useApp, type Rolle } from '../lib/app-tilstand';
 import { settRetning } from '../lib/overgang';
 import { animasjon, farger, ikonStrek } from '../lib/tema';
 import { Tekst } from './Tekst';
 import { Trykkbar } from './Trykkbar';
 
-const faner: Record<string, (rolle: Rolle | null) => { tekst: string; ikon: LucideIcon }> = {
+const faner: Record<string, () => { tekst: string; ikon: LucideIcon }> = {
   index: () => ({ tekst: 'Hjem', ikon: House }),
-  avtaler: (rolle) =>
-    rolle === 'ungdom' ? { tekst: 'Oppdrag', ikon: ClipboardList } : { tekst: 'Avtaler', ikon: CalendarDays },
+  mine: () => ({ tekst: 'Mine annonser', ikon: Megaphone }),
   profil: () => ({ tekst: 'Profil', ikon: User }),
 };
 
 export function Fanemeny({ state, navigateToTab, insets }: BottomTabBarProps) {
-  const { rolle } = useApp();
-
   return (
     <View style={[styles.meny, { paddingBottom: insets.bottom + 10 }]} accessibilityRole="tablist">
       {state.routes.map((route, i) => {
-        const fane = faner[route.name]?.(rolle);
+        const fane = faner[route.name]?.();
         if (!fane) return null;
         return (
           <Fane

@@ -1,7 +1,7 @@
 import { useFocusEffect, useIsFocused } from 'expo-router';
 import { CircleHelp } from 'lucide-react-native';
 import { Children, useCallback, useRef, useState, type ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -20,10 +20,13 @@ type Props = {
   hjelp?: boolean;
   // Noe som skal ligge fast nederst, f.eks. et skrivefelt i chatten.
   bunn?: ReactNode;
+  // Dra ned for å hente på nytt.
+  oppdater?: () => Promise<unknown>;
 };
 
 // Felles ramme for alle skjermer: safe area øverst, rulling, og myk innkomst.
-export function Skjerm({ children, nokkel = '', tilbake, hjelp = true, bunn }: Props) {
+export function Skjerm({ children, nokkel = '', tilbake, hjelp = true, bunn, oppdater }: Props) {
+  const [henter, setHenter] = useState(false);
   const innsett = useSafeAreaInsets();
   const redusertBevegelse = useReducedMotion();
   const fokusert = useIsFocused();
@@ -51,6 +54,19 @@ export function Skjerm({ children, nokkel = '', tilbake, hjelp = true, bunn }: P
         style={styles.rulling}
         contentContainerStyle={[styles.innhold, { paddingTop: innsett.top + 12 }]}
         keyboardShouldPersistTaps="handled"
+        refreshControl={
+          oppdater ? (
+            <RefreshControl
+              refreshing={henter}
+              tintColor={farger.lilla}
+              colors={[farger.lilla]}
+              onRefresh={() => {
+                setHenter(true);
+                oppdater().finally(() => setHenter(false));
+              }}
+            />
+          ) : undefined
+        }
       >
         <Animated.View key={`${besok}-${nokkel}`} entering={skjermInn(retning, redusertBevegelse)} style={styles.liste}>
           {visTopp && (
