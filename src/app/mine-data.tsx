@@ -46,7 +46,7 @@ export default function MineData() {
       visToast(svar.feil);
       return;
     }
-    nullstill();
+    nullstill(true);
     visToast('Kontoen din er slettet.');
     settRetning('rolle');
     router.replace('/oppstart');

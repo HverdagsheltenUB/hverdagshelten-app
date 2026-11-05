@@ -48,7 +48,8 @@ type AppTilstand = {
   settStorreTekst: (pa: boolean) => void;
   sendMelding: (tekst: string, svar?: string) => void;
   rapporter: (tekst: string) => void;
-  nullstill: () => void;
+  // helt = også vilkår og omvisning (når kontoen slettes). Ellers beholdes de ved utlogging.
+  nullstill: (helt?: boolean) => void;
   toast: Toast | null;
   visToast: (tekst: string) => void;
   // Kortnavn som mange skjermer bruker.
@@ -141,10 +142,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
           rapporter: [...d.rapporter, { id: nyId('r'), rolle: d.rolle ?? 'eldre', tekst, tid: Date.now() }],
         })),
       // Tømmer det som er lagret på telefonen (ved utlogging og sletting av kontoen).
-      nullstill: () => {
+      nullstill: (helt = false) => {
         svartimere.current.forEach(clearTimeout);
         svartimere.current = [];
-        setData((d) => ({ ...startData(), storreTekst: d.storreTekst }));
+        setData((d) => ({
+          ...startData(),
+          storreTekst: d.storreTekst,
+          vilkarGodtatt: helt ? false : d.vilkarGodtatt,
+          omvisningSett: helt ? false : d.omvisningSett,
+        }));
       },
       toast,
       visToast,
