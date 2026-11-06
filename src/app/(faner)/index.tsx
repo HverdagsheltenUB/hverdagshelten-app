@@ -96,7 +96,7 @@ function Dagsoversikt({ annonser, laster, hjelper }: { annonser: Annonse[]; last
   const utenTid = annonser.filter((a) => !a.tidspunkt && (a.status === 'akseptert' || a.status === 'pa_vei'));
 
   const [valgt, setValgt] = useState<string | null>(null);
-  const valgtDag = valgt ?? idagNokkel;
+  const valgtDag: string = valgt ?? idagNokkel;
   const valgtDato = dager.find((d) => datonokkel(d) === valgtDag) ?? dager[0];
   const erIdag = valgtDag === idagNokkel;
   const denDagen = perDag[valgtDag] ?? [];
