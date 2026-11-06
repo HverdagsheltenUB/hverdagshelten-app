@@ -76,8 +76,9 @@ function beskriv(a: Annonse, hjelper: boolean) {
 }
 
 function Dagsoversikt({ annonser, laster, hjelper }: { annonser: Annonse[]; laster: boolean; hjelper: boolean }) {
-  const [idag, ...neste] = useMemo(() => dagerFraIdag(8), []);
-  const idagNokkel = datonokkel(idag);
+  // Kalenderen starter alltid på dagens dato, og i dag er valgt når man åpner forsiden.
+  const dager = useMemo(() => dagerFraIdag(14), []);
+  const idagNokkel = datonokkel(dager[0]);
 
   // Grupper alt med tidspunkt etter dag, sortert etter klokkeslett.
   const perDag = useMemo(() => {
@@ -94,12 +95,12 @@ function Dagsoversikt({ annonser, laster, hjelper }: { annonser: Annonse[]; last
   // Avtalt, men uten fast tid: vises så det ikke blir borte.
   const utenTid = annonser.filter((a) => !a.tidspunkt && (a.status === 'akseptert' || a.status === 'pa_vei'));
 
-  const forsteMedNoe = neste.find((d) => antall[datonokkel(d)]) ?? neste[0];
   const [valgt, setValgt] = useState<string | null>(null);
-  const valgtDag = valgt ?? datonokkel(forsteMedNoe);
-  const valgtDato = neste.find((d) => datonokkel(d) === valgtDag) ?? neste[0];
-  const iDag = perDag[idagNokkel] ?? [];
+  const valgtDag = valgt ?? idagNokkel;
+  const valgtDato = dager.find((d) => datonokkel(d) === valgtDag) ?? dager[0];
+  const erIdag = valgtDag === idagNokkel;
   const denDagen = perDag[valgtDag] ?? [];
+  const tittel = erIdag ? 'I dag' : dagtekst(valgtDato).replace(/^./, (c) => c.toUpperCase());
 
   if (laster) {
     return <ActivityIndicator color={farger.lilla} size="large" style={styles.laster} />;
@@ -109,19 +110,28 @@ function Dagsoversikt({ annonser, laster, hjelper }: { annonser: Annonse[]; last
   return (
     <View style={styles.bolker}>
       <View style={styles.blokk}>
+        <Dagstripe
+          dager={dager}
+          valgt={valgtDag}
+          onVelg={setValgt}
+          antall={antall}
+          etikett={(_d, i) => (i === 0 ? 'I dag' : null)}
+        />
         <Seksjon
-          tittel="I dag"
+          tittel={tittel}
           hoyre={
-            iDag.length > 0 && <Pille tekst={`${iDag.length} avtale${iDag.length === 1 ? '' : 'r'}`} variant="lilla" />
+            denDagen.length > 0 && (
+              <Pille tekst={`${denDagen.length} avtale${denDagen.length === 1 ? '' : 'r'}`} variant="lilla" />
+            )
           }
         />
-        {iDag.length > 0 ? (
+        {denDagen.length > 0 ? (
           <View style={styles.liste}>
-            {iDag.map((a) => (
+            {denDagen.map((a) => (
               <Aktivitet key={a.id} annonse={a} undertekst={beskriv(a, hjelper)} onPress={() => apne(a)} />
             ))}
           </View>
-        ) : (
+        ) : erIdag ? (
           <Kort myk style={styles.tomDag}>
             <View style={styles.solIkon}>
               <Sun size={26} color={farger.morkLilla} strokeWidth={ikonStrek} />
@@ -137,18 +147,6 @@ function Dagsoversikt({ annonser, laster, hjelper }: { annonser: Annonse[]; last
               </Tekst>
             </View>
           </Kort>
-        )}
-      </View>
-
-      <View style={styles.blokk}>
-        <Seksjon tittel="De neste dagene" />
-        <Dagstripe dager={neste} valgt={valgtDag} onVelg={setValgt} antall={antall} />
-        {denDagen.length > 0 ? (
-          <View style={styles.liste}>
-            {denDagen.map((a) => (
-              <Aktivitet key={a.id} annonse={a} undertekst={beskriv(a, hjelper)} onPress={() => apne(a)} />
-            ))}
-          </View>
         ) : (
           <View style={styles.rolig}>
             <CalendarHeart size={20} color={farger.dempet} strokeWidth={ikonStrek} />
