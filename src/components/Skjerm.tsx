@@ -1,6 +1,6 @@
 import { useFocusEffect, useIsFocused } from 'expo-router';
 import { CircleHelp } from 'lucide-react-native';
-import { Children, isValidElement, useCallback, useRef, useState, type ReactNode } from 'react';
+import { Children, createContext, type ComponentRef, isValidElement, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -26,9 +26,16 @@ type Props = {
   holdNederst?: boolean;
 };
 
+// Lar et skrivefelt be skjermen rulle så feltet ikke havner bak tastaturet.
+type Rulletil = (felt: ComponentRef<typeof View> | null) => void;
+const RulleKontekst = createContext<Rulletil>(() => {});
+export const useRullTilFelt = () => useContext(RulleKontekst);
+
 // Felles ramme for alle skjermer: safe area øverst, rulling, og myk innkomst.
 export function Skjerm({ children, nokkel = '', tilbake, hjelp = true, bunn, oppdater, holdNederst = false }: Props) {
-  const rulleRef = useRef<{ scrollToEnd: (o?: { animated?: boolean }) => void } | null>(null);
+  const rulleRef = useRef<ComponentRef<typeof ScrollView> | null>(null);
+  const innholdRef = useRef<ComponentRef<typeof View> | null>(null);
+  const synlig = useRef({ fra: 0, hoyde: 0 });
   const [henter, setHenter] = useState(false);
   const innsett = useSafeAreaInsets();
   const redusertBevegelse = useReducedMotion();
@@ -48,6 +55,24 @@ export function Skjerm({ children, nokkel = '', tilbake, hjelp = true, bunn, opp
     }, []),
   );
 
+  // Når tastaturet har kommet opp: rull bare hvis feltet er skjult, og legg det godt synlig.
+  const rullTilFelt = useCallback<Rulletil>((felt) => {
+    if (Platform.OS === 'web' || !felt || !innholdRef.current) return;
+    setTimeout(() => {
+      if (!innholdRef.current) return;
+      felt.measureLayout(
+        innholdRef.current,
+        (_x: number, y: number, _b: number, h: number) => {
+          const { fra, hoyde } = synlig.current;
+          const topp = y + innsett.top + 12;
+          if (topp >= fra + 16 && topp + h <= fra + hoyde - 16) return;
+          rulleRef.current?.scrollTo({ y: Math.max(0, topp - 90), animated: true });
+        },
+        () => {},
+      );
+    }, 320);
+  }, [innsett.top]);
+
   const retning = hentRetning();
   const visTopp = Boolean(tilbake) || hjelp;
 
@@ -56,9 +81,17 @@ export function Skjerm({ children, nokkel = '', tilbake, hjelp = true, bunn, opp
       <ScrollView
         style={styles.rulling}
         contentContainerStyle={[styles.innhold, { paddingTop: innsett.top + 12 }]}
-        ref={rulleRef as never}
+        ref={rulleRef}
         onContentSizeChange={holdNederst ? () => rulleRef.current?.scrollToEnd({ animated: true }) : undefined}
+        onScroll={(e) => {
+          synlig.current.fra = e.nativeEvent.contentOffset.y;
+        }}
+        onLayout={(e) => {
+          synlig.current.hoyde = e.nativeEvent.layout.height;
+        }}
+        scrollEventThrottle={64}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="none"
         refreshControl={
           oppdater ? (
             <RefreshControl
@@ -73,6 +106,8 @@ export function Skjerm({ children, nokkel = '', tilbake, hjelp = true, bunn, opp
           ) : undefined
         }
       >
+        <RulleKontekst.Provider value={rullTilFelt}>
+        <View ref={innholdRef} collapsable={false}>
         <Animated.View key={`${besok}-${nokkel}`} entering={skjermInn(retning, redusertBevegelse)} style={styles.liste}>
           {visTopp && (
             <View style={styles.topp}>
@@ -95,6 +130,8 @@ export function Skjerm({ children, nokkel = '', tilbake, hjelp = true, bunn, opp
             </Animated.View>
           ))}
         </Animated.View>
+        </View>
+        </RulleKontekst.Provider>
       </ScrollView>
       {bunn && <View style={[styles.bunn, { paddingBottom: innsett.bottom + 12 }]}>{bunn}</View>}
     </KeyboardAvoidingView>

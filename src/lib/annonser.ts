@@ -49,6 +49,8 @@ export type Annonse = {
   akseptert: string | null;
   vurdering: number | null;
   takk: string | null;
+  // Når oppdraget skal skje (valgfritt). Brukes i «I dag» og kalenderen.
+  tidspunkt: string | null;
   // Den som la ut annonsen, og hjelperen som har tatt den.
   profiler: Personkort | null;
   hjelper: Personkort | null;
@@ -73,6 +75,9 @@ export type Annonseutkast = {
   sted: string;
   levering: Levering | null;
   bilder: string[];
+  // Når det skal skje: dato som «2026-11-07» og klokkeslett som «14:00». Tomt = ingen fast tid.
+  dato: string;
+  klokke: string;
   // Vises bare for den som aksepterer annonsen.
   adresse: string;
   lat: number | null;
@@ -90,6 +95,8 @@ export const tomtUtkast: Annonseutkast = {
   sted: '',
   levering: null,
   bilder: [],
+  dato: '',
+  klokke: '',
   adresse: '',
   lat: null,
   lng: null,
@@ -181,11 +188,56 @@ export function nartekst(iso: string) {
   return `${d.getDate()}. ${mnd}`;
 }
 
+// ─── Dato og tid ──────────────────────────────────────────────
+
+export const ukedager = ['søndag', 'mandag', 'tirsdag', 'onsdag', 'torsdag', 'fredag', 'lørdag'];
+export const ukedagerKort = ['søn.', 'man.', 'tir.', 'ons.', 'tor.', 'fre.', 'lør.'];
+export const maaneder = ['januar', 'februar', 'mars', 'april', 'mai', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'desember'];
+
+const tosifret = (n: number) => String(n).padStart(2, '0');
+
+// «2026-11-07», etter klokka på telefonen.
+export function datonokkel(d: Date) {
+  return `${d.getFullYear()}-${tosifret(d.getMonth() + 1)}-${tosifret(d.getDate())}`;
+}
+
+export function klokkeslett(d: Date) {
+  return `${tosifret(d.getHours())}:${tosifret(d.getMinutes())}`;
+}
+
+// Dagene fra i dag og framover, f.eks. til kalenderen og datovelgeren.
+export function dagerFraIdag(antall: number, start = 0): Date[] {
+  const idag = new Date();
+  return Array.from({ length: antall }, (_, i) => new Date(idag.getFullYear(), idag.getMonth(), idag.getDate() + start + i));
+}
+
+// «i dag», «i morgen» eller «fredag 7. november».
+export function dagtekst(d: Date) {
+  const n = datonokkel(d);
+  const [idag, imorgen] = dagerFraIdag(2).map(datonokkel);
+  if (n === idag) return 'i dag';
+  if (n === imorgen) return 'i morgen';
+  return `${ukedager[d.getDay()]} ${d.getDate()}. ${maaneder[d.getMonth()]}`;
+}
+
+// «I dag kl. 14:00», «I morgen kl. 09:30», «Fredag 7. november kl. 12:00».
+export function tidtekst(iso: string) {
+  const d = new Date(iso);
+  const t = `${dagtekst(d)} kl. ${klokkeslett(d)}`;
+  return t[0].toUpperCase() + t.slice(1);
+}
+
 // ─── Lese fra databasen ───────────────────────────────────────
 
-const felter =
+const grunnfelter =
   'id, bruker_id, type, tittel, kategori, beskrivelse, pris, tilstand, storrelse, sted, levering, bilder, opprettet, endret, status, hjelper_id, akseptert, vurdering, takk, ' +
   'profiler:profiler!annonser_bruker_id_fkey(navn, omrade, opprettet, bilde), hjelper:profiler!annonser_hjelper_id_fkey(navn, bilde)';
+const felter = `${grunnfelter}, tidspunkt`;
+
+// Hvis databasen ikke har fått kolonnen «tidspunkt» ennå, virker appen likevel (bare uten tidspunkt).
+function manglerTidspunkt(feil: { message?: string } | null) {
+  return Boolean(feil?.message?.includes('tidspunkt'));
+}
 
 type Liste = { annonser: Annonse[]; laster: boolean; feil: string | null; oppdater: () => Promise<void> };
 
@@ -202,11 +254,15 @@ export function useAnnonser(filter?: { brukerId?: string; hjelperId?: string; ba
 
   const oppdater = useCallback(async () => {
     const denne = ++forrige.current;
-    let sporring = supabase.from('annonser').select(felter).order('opprettet', { ascending: false }).limit(200);
-    if (brukerId) sporring = sporring.eq('bruker_id', brukerId);
-    if (hjelperId) sporring = sporring.eq('hjelper_id', hjelperId);
-    if (bareLedige) sporring = sporring.eq('status', 'ledig');
-    const { data, error } = await sporring;
+    const hent = (f: string) => {
+      let sporring = supabase.from('annonser').select(f).order('opprettet', { ascending: false }).limit(200);
+      if (brukerId) sporring = sporring.eq('bruker_id', brukerId);
+      if (hjelperId) sporring = sporring.eq('hjelper_id', hjelperId);
+      if (bareLedige) sporring = sporring.eq('status', 'ledig');
+      return sporring;
+    };
+    let { data, error } = await hent(felter);
+    if (manglerTidspunkt(error)) ({ data, error } = await hent(grunnfelter));
     if (denne !== forrige.current) return;
     if (error) setFeil(feiltekst(error));
     else {
@@ -244,7 +300,9 @@ export function useAnnonse(id: string | undefined) {
 
   const oppdater = useCallback(async () => {
     if (!id) return;
-    const { data, error } = await supabase.from('annonser').select(felter).eq('id', id).maybeSingle();
+    const hent = (f: string) => supabase.from('annonser').select(f).eq('id', id).maybeSingle();
+    let { data, error } = await hent(felter);
+    if (manglerTidspunkt(error)) ({ data, error } = await hent(grunnfelter));
     if (error) setFeil(feiltekst(error));
     else {
       setFeil(null);
@@ -326,10 +384,21 @@ export function utkastFraAnnonse(a: Annonse): Annonseutkast {
     sted: a.sted,
     levering: a.levering,
     bilder: a.bilder,
+    dato: a.tidspunkt ? datonokkel(new Date(a.tidspunkt)) : '',
+    klokke: a.tidspunkt ? klokkeslett(new Date(a.tidspunkt)) : '',
     adresse: '',
     lat: null,
     lng: null,
   };
+}
+
+// Gjør dato og klokkeslett fra skjemaet om til et tidspunkt (norsk tid på telefonen).
+export function tidspunktFraUtkast(u: Pick<Annonseutkast, 'dato' | 'klokke'>): string | null {
+  if (!u.dato) return null;
+  const [aar, mnd, dag] = u.dato.split('-').map(Number);
+  const [t, m] = (u.klokke || '12:00').split(':').map(Number);
+  const d = new Date(aar, mnd - 1, dag, t, m);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 
 // Gjør utfylte felt om til det som lagres. Felt som ikke passer kategorien, tas ikke med.
@@ -347,6 +416,7 @@ export function radFraUtkast(u: Annonseutkast) {
     storrelse: k?.storrelse && u.storrelse.trim() ? u.storrelse.trim() : null,
     sted: u.sted.trim(),
     levering: type === 'ting' ? u.levering : null,
+    tidspunkt: tidspunktFraUtkast(u),
   };
 }
 
@@ -366,18 +436,26 @@ export async function lagreAnnonse(
         bilder.push(adresse);
       } else bilder.push(uri);
     }
-    const rad = { ...radFraUtkast(utkast), bilder };
+    const rad: Record<string, unknown> = { ...radFraUtkast(utkast), bilder };
 
     let id: string;
     if (eksisterende) {
-      const { error } = await supabase.from('annonser').update(rad).eq('id', eksisterende.id);
+      let { error } = await supabase.from('annonser').update(rad).eq('id', eksisterende.id);
+      if (manglerTidspunkt(error)) {
+        delete rad.tidspunkt;
+        ({ error } = await supabase.from('annonser').update(rad).eq('id', eksisterende.id));
+      }
       if (error) throw error;
       // Rydder bort bilder som er tatt ut av annonsen.
       await slettBilder(eksisterende.bilder.filter((b) => !bilder.includes(b))).catch(() => {});
       id = eksisterende.id;
     } else {
-      const { data, error } = await supabase.from('annonser').insert(rad).select('id').single();
-      if (error) throw error;
+      let { data, error } = await supabase.from('annonser').insert(rad).select('id').single();
+      if (manglerTidspunkt(error)) {
+        delete rad.tidspunkt;
+        ({ data, error } = await supabase.from('annonser').insert(rad).select('id').single());
+      }
+      if (error || !data) throw error;
       id = data.id as string;
     }
     const { error: adressefeil } = await supabase.from('annonse_adresser').upsert({
@@ -438,6 +516,13 @@ export function kartlenke(a: Adresse | null, sted: string) {
   return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(mal)}&travelmode=walking`;
 }
 
+// Google Maps med området (aldri den private adressen), for å se omtrent hvor det er.
+export function omradelenke(sted: string) {
+  const t = sted.trim();
+  const sok = /,|norge|norway/i.test(t) ? t : `${t}, Norge`;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(sok)}`;
+}
+
 async function kall(funksjon: string, args: Record<string, unknown>): Promise<{ feil?: string }> {
   const { error } = await supabase.rpc(funksjon, args);
   if (!error) return {};
@@ -448,6 +533,20 @@ async function kall(funksjon: string, args: Record<string, unknown>): Promise<{ 
 
 export function aksepterAnnonse(id: string) {
   return kall('aksepter_annonse', { annonse: id });
+}
+
+// «Takk ja» / «Aksepter»: tar annonsen og sier hei i chatten, så de kan avtale resten.
+export async function takkJa(a: Pick<Annonse, 'id' | 'type' | 'tittel' | 'profiler'>): Promise<{ feil?: string }> {
+  const svar = await aksepterAnnonse(a.id);
+  if (svar.feil) return svar;
+  const navn = a.profiler?.navn?.trim().split(/\s+/)[0] || 'der';
+  await sendMelding(
+    a.id,
+    a.type === 'hjelp'
+      ? `Hei ${navn}! Jeg har takket ja til «${a.tittel}». Jeg gleder meg til å hjelpe deg.`
+      : `Hei ${navn}! Jeg vil gjerne ha «${a.tittel}». Når kan jeg hente?`,
+  ).catch(() => {});
+  return {};
 }
 
 export function oppdaterOppdrag(id: string, status: 'pa_vei' | 'ferdig' | 'akseptert') {

@@ -12,7 +12,7 @@ import {
   type Levering,
 } from '../lib/annonser';
 import { farger, ikonStrek } from '../lib/tema';
-import { Stedlinje } from './Annonse';
+import { Omradelinje, Tidlinje } from './Annonse';
 import { Kort, Skillelinje } from './Kort';
 import { Avatar, Pille } from './Smaabiter';
 import { Tekst } from './Tekst';
@@ -33,6 +33,7 @@ export type Visning = {
   bilde?: string | null;
   medlemSiden?: string;
   status?: Annonsestatus;
+  tidspunkt?: string | null;
 };
 
 const mndNavn = ['januar', 'februar', 'mars', 'april', 'mai', 'juni', 'juli', 'august', 'september', 'oktober', 'november', 'desember'];
@@ -102,7 +103,8 @@ export function Annonsevisning({ a }: { a: Visning }) {
         <Tekst variant="stor" farge={farger.morkLilla}>
           {pristekst(a)}
         </Tekst>
-        {a.sted ? <Stedlinje sted={a.sted} /> : null}
+        <Tidlinje tidspunkt={a.tidspunkt} />
+        <Omradelinje sted={a.sted} />
       </View>
 
       {a.beskrivelse ? (

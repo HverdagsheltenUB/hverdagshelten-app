@@ -1,12 +1,12 @@
-import { MapPin, Search, X, type LucideIcon } from 'lucide-react-native';
+import { CalendarClock, ExternalLink, HandHeart, MapPin, Search, X, type LucideIcon } from 'lucide-react-native';
 import { createElement, type ReactNode } from 'react';
-import { Image, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
+import { Image, Linking, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
-import { ikonFor, nartekst, pristekst, statustekst, type Annonse } from '../lib/annonser';
+import { ikonFor, nartekst, omradelenke, pristekst, statustekst, tidtekst, type Annonse } from '../lib/annonser';
 import { farger, ikonStrek, skrift } from '../lib/tema';
 import { Knapp } from './Knapp';
 import { Kort } from './Kort';
-import { Pille } from './Smaabiter';
+import { Avatar, Pille } from './Smaabiter';
 import { Tekst, useTekststorrelse } from './Tekst';
 
 // Ryddig, vennlig beskjed når det ikke finnes noe å vise ennå.
@@ -91,6 +91,69 @@ export function Annonsekort({ annonse, onPress, hoyre }: { annonse: Annonse; onP
   );
 }
 
+// En ledig annonse på forsiden til hjelperne, med «Takk ja» rett på kortet.
+export function Tilbudskort({
+  annonse,
+  onTakkJa,
+  onApne,
+  tar,
+}: {
+  annonse: Annonse;
+  onTakkJa: () => void;
+  onApne: () => void;
+  tar: boolean;
+}) {
+  const navn = annonse.profiler?.navn?.trim() || 'En bruker';
+  return (
+    <Kort style={styles.tilbud}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${annonse.tittel}, lagt ut av ${navn}. Åpne annonsen`}
+        onPress={onApne}
+        style={({ pressed }) => [styles.tilbudTopp, pressed && styles.trykket]}
+      >
+        <View style={styles.person}>
+          <Avatar bokstav={(navn[0] ?? '?').toUpperCase()} bilde={annonse.profiler?.bilde} storrelse={40} />
+          <View style={styles.tekster}>
+            <Tekst variant="brodLiten" vekt={700} numberOfLines={1}>
+              {navn}
+            </Tekst>
+            <Tekst variant="underLiten">Lagt ut {nartekst(annonse.opprettet)}</Tekst>
+          </View>
+          <Pille
+            tekst={annonse.type === 'hjelp' ? annonse.kategori : annonse.pris === 0 ? 'Gis bort' : 'Til salgs'}
+            variant={annonse.type === 'hjelp' ? 'lilla' : 'fersken'}
+          />
+        </View>
+        <View style={styles.tilbudInnhold}>
+          {annonse.bilder[0] ? <Annonsebilde annonse={annonse} storrelse={72} /> : null}
+          <View style={styles.tekster}>
+            <Tekst variant="listetittel" vekt={800} numberOfLines={2}>
+              {annonse.tittel}
+            </Tekst>
+            {annonse.beskrivelse ? (
+              <Tekst variant="under" numberOfLines={3}>
+                {annonse.beskrivelse}
+              </Tekst>
+            ) : null}
+          </View>
+        </View>
+      </Pressable>
+      <View style={styles.fakta}>
+        <Tidlinje tidspunkt={annonse.tidspunkt} />
+        <Omradelinje sted={annonse.sted} />
+        <Tekst variant="brodLiten" vekt={700} farge={farger.morkLilla}>
+          {pristekst(annonse)}
+        </Tekst>
+      </View>
+      <View style={styles.tilbudKnapper}>
+        <Knapp ikon={HandHeart} tekst="Takk ja" laster={tar} onPress={onTakkJa} style={styles.flex} />
+        <Knapp variant="sekundar" tekst="Les mer" onPress={onApne} style={styles.flex} />
+      </View>
+    </Kort>
+  );
+}
+
 export function Sokefelt({ verdi, onEndre }: { verdi: string; onEndre: (t: string) => void }) {
   const fontSize = useTekststorrelse('brod');
   return (
@@ -115,11 +178,42 @@ export function Sokefelt({ verdi, onEndre }: { verdi: string; onEndre: (t: strin
   );
 }
 
-export function Stedlinje({ sted }: { sted: string }) {
+// «Område: Kalsrud · Vis på Google Maps». Bruker bare området, aldri den private adressen.
+export function Omradelinje({ sted }: { sted: string }) {
+  if (!sted.trim()) return null;
+  return (
+    <View style={styles.omrade}>
+      <View style={styles.sted}>
+        <MapPin size={18} color={farger.dempet} strokeWidth={ikonStrek} />
+        <Tekst variant="under">
+          Område: <Tekst variant="under" vekt={700} farge={farger.tekst}>{sted.trim()}</Tekst>
+        </Tekst>
+      </View>
+      <Pressable
+        accessibilityRole="link"
+        accessibilityLabel={`Vis ${sted.trim()} på Google Maps`}
+        onPress={() => Linking.openURL(omradelenke(sted)).catch(() => {})}
+        hitSlop={10}
+        style={({ pressed }) => [styles.sted, pressed && styles.trykket]}
+      >
+        <Tekst variant="under" vekt={700} farge={farger.lilla} style={styles.understrek}>
+          Vis på Google Maps
+        </Tekst>
+        <ExternalLink size={15} color={farger.lilla} strokeWidth={2} />
+      </Pressable>
+    </View>
+  );
+}
+
+// «Når: I morgen kl. 14:00»
+export function Tidlinje({ tidspunkt }: { tidspunkt: string | null | undefined }) {
+  if (!tidspunkt) return null;
   return (
     <View style={styles.sted}>
-      <MapPin size={18} color={farger.dempet} strokeWidth={ikonStrek} />
-      <Tekst variant="under">{sted}</Tekst>
+      <CalendarClock size={18} color={farger.dempet} strokeWidth={ikonStrek} />
+      <Tekst variant="under">
+        Når: <Tekst variant="under" vekt={700} farge={farger.tekst}>{tidtekst(tidspunkt)}</Tekst>
+      </Tekst>
     </View>
   );
 }
@@ -192,5 +286,25 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
+  },
+  tilbud: { gap: 14, padding: 16 },
+  tilbudTopp: { gap: 12 },
+  person: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  tilbudInnhold: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
+  fakta: { gap: 6 },
+  tilbudKnapper: { flexDirection: 'row', gap: 10 },
+  flex: { flex: 1 },
+  omrade: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    columnGap: 12,
+    rowGap: 4,
+  },
+  understrek: {
+    textDecorationLine: 'underline',
+  },
+  trykket: {
+    opacity: 0.6,
   },
 });

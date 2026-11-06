@@ -27,7 +27,6 @@ import { Avatar, Stjerner } from '../../components/Smaabiter';
 import { Tekst } from '../../components/Tekst';
 import { useApp } from '../../lib/app-tilstand';
 import {
-  aksepterAnnonse,
   giTakk,
   kartlenke,
   oppdaterOppdrag,
@@ -35,6 +34,7 @@ import {
   slettAnnonse,
   slippAnnonse,
   statustekst,
+  takkJa,
   useAdresse,
   useAnnonse,
   type Annonse,
@@ -115,32 +115,24 @@ function Besokerpanel({ annonse, oppdater, kanTa }: Panel & { kanTa: boolean }) 
           <>
             <Knapp
               ikon={HandHeart}
-              tekst={annonse.type === 'hjelp' ? 'Aksepter oppdraget' : 'Jeg vil ha den'}
+              tekst={annonse.type === 'hjelp' ? 'Takk ja' : 'Jeg vil ha den'}
               laster={tar}
               onPress={async () => {
                 const ja = await bekreft({
-                  tittel: annonse.type === 'hjelp' ? 'Ta dette oppdraget?' : 'Reservere denne?',
+                  tittel: annonse.type === 'hjelp' ? `Takke ja til «${annonse.tittel}»?` : 'Reservere denne?',
                   tekst: `Da får du adressen og kan skrive med ${navn}. Annonsen forsvinner fra forsiden for andre.`,
-                  ja: 'Ja, aksepter',
+                  ja: annonse.type === 'hjelp' ? 'Ja, takk ja' : 'Ja, reserver',
                 });
                 if (!ja) return;
                 setTar(true);
-                const svar = await aksepterAnnonse(annonse.id);
-                if (!svar.feil) {
-                  await sendMelding(
-                    annonse.id,
-                    annonse.type === 'hjelp'
-                      ? `Hei ${navn}! Jeg har tatt oppdraget «${annonse.tittel}». Når passer det for deg?`
-                      : `Hei ${navn}! Jeg vil gjerne ha «${annonse.tittel}». Når kan jeg hente?`,
-                  );
-                }
+                const svar = await takkJa(annonse);
                 setTar(false);
                 if (svar.feil) {
                   visToast(svar.feil);
                   await oppdater();
                   return;
                 }
-                visToast('Du har akseptert! Nå kan dere skrive sammen.');
+                visToast('Du har takket ja! Nå kan dere skrive sammen.');
                 await oppdater();
               }}
             />

@@ -54,7 +54,7 @@ try {
   const fremmed = await b.storage.from('annonsebilder').upload(`${idA}/inntrenger-${tid}.png`, PNG, { contentType: 'image/png' });
   sjekk('B kan ikke laste opp i As mappe', Boolean(fremmed.error));
 
-  const ins = await a.from('annonser').insert({ type: 'ting', tittel: 'Testsykkel', kategori: 'Sport og fritid', pris: 500, tilstand: 'Pent brukt', storrelse: '26 tommer', sted: 'Sagene', levering: 'hentes', bilder: [bildeUrl] }).select('id').single();
+  const ins = await a.from('annonser').insert({ type: 'ting', tittel: 'Testsykkel', kategori: 'Sport og fritid', pris: 500, tilstand: 'Pent brukt', storrelse: '26 tommer', sted: 'Sagene', levering: 'hentes', bilder: [bildeUrl], tidspunkt: '2030-01-02T13:00:00Z' }).select('id').single();
   sjekk('A kan publisere annonse', !ins.error, ins.error?.message);
   const annonseId = ins.data?.id;
 
@@ -64,7 +64,8 @@ try {
   sjekk('B (hjelper) kan ikke legge ut annonser', Boolean(egen.error));
 
   // 5. B ser annonsen, med navnet til A
-  const { data: sett, error: settFeil } = await b.from('annonser').select('id, tittel, bilder, profiler(navn)').eq('id', annonseId).single();
+  const { data: sett, error: settFeil } = await b.from('annonser').select('id, tittel, bilder, tidspunkt, profiler:profiler!annonser_bruker_id_fkey(navn)').eq('id', annonseId).single();
+  sjekk('Tidspunktet lagres (kolonnen finnes)', sett && new Date(sett.tidspunkt).toISOString() === '2030-01-02T13:00:00.000Z', JSON.stringify(sett?.tidspunkt ?? settFeil?.message));
   sjekk('B ser As annonse med navn', !settFeil && sett?.profiler?.navn === 'Test Tone' && sett.bilder.length === 1, settFeil?.message);
 
   // 6. B kan ikke endre eller slette

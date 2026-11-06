@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Annonsevisning } from '../components/Annonsevisning';
+import { Dagstripe } from '../components/Kalender';
 import { useBekreft } from '../components/Dialog';
 import { Infoboks } from '../components/Ekstra';
 import { Knapp } from '../components/Knapp';
@@ -15,11 +16,14 @@ import { BryterRad, Chip, Chiprad } from '../components/Valg';
 import { useApp } from '../lib/app-tilstand';
 import {
   annonsekategorier,
+  dagerFraIdag,
   finnAnnonsekategori,
   foreslaKategori,
   hentAdresse,
   lagreAnnonse,
   radFraUtkast,
+  tidspunktFraUtkast,
+  tidtekst,
   tilstander,
   tomtUtkast,
   utkastFraAnnonse,
@@ -35,6 +39,8 @@ import { farger, ikonStrek } from '../lib/tema';
 import { harInnhold, hentUtkast, lagreUtkast, slettUtkast } from '../lib/utkast';
 
 const maksBilder = 6;
+const dagvalg = dagerFraIdag(21);
+const klokkevalg = Array.from({ length: 13 }, (_, i) => `${String(8 + i).padStart(2, '0')}:00`);
 
 type Props = {
   // Satt når en eksisterende annonse endres.
@@ -113,6 +119,9 @@ export function Annonseskjema({ eksisterende }: Props) {
   const tittelOk = u.tittel.trim().length >= 3;
   const klar = tittelOk && Boolean(kategori);
   const mangler = !tittelOk ? 'Skriv en tittel på minst tre tegn.' : !kategori ? 'Velg en kategori.' : null;
+  const tidspunkt = tidspunktFraUtkast(u);
+  // Én fast linje over knappen, så ingenting hopper mens man skriver.
+  const statuslinje = mangler ?? (ny && utkastLagret ? '✓ Utkastet er lagret på telefonen' : ' ');
 
   async function leggTilBilder(fraKamera: boolean) {
     const plass = maksBilder - u.bilder.length;
@@ -192,11 +201,15 @@ export function Annonseskjema({ eksisterende }: Props) {
       tilbake={{ tekst: 'Avbryt', onPress: avbryt }}
       bunn={
         <View style={styles.bunnknapper}>
-          {mangler && (
-            <Tekst variant="underLiten" style={styles.sentrert}>
-              {mangler}
-            </Tekst>
-          )}
+          <Tekst
+            variant="underLiten"
+            numberOfLines={1}
+            farge={mangler ? farger.dempet : farger.gronn}
+            vekt={mangler ? 400 : 600}
+            style={styles.sentrert}
+          >
+            {statuslinje}
+          </Tekst>
           <Knapp
             ikon={Eye}
             tekst="Forhåndsvis annonsen"
@@ -217,11 +230,6 @@ export function Annonseskjema({ eksisterende }: Props) {
             : 'Endringene vises for alle når du lagrer.'
         }
       />
-      {ny && utkastLagret && (
-        <Tekst variant="underLiten" farge={farger.gronn} vekt={600}>
-          ✓ Utkastet er lagret på telefonen
-        </Tekst>
-      )}
 
       {/* Bilder */}
       <View style={styles.gruppe}>
@@ -361,6 +369,43 @@ export function Annonseskjema({ eksisterende }: Props) {
         value={u.beskrivelse}
         onChangeText={(beskrivelse) => sett({ beskrivelse: beskrivelse.slice(0, 2000) })}
       />
+
+      {/* Når – vises i «I dag» og kalenderen for begge to */}
+      <View style={styles.gruppe}>
+        <Tekst variant="brodLiten" vekt={700}>
+          {erTing ? 'Når kan den hentes? (valgfritt)' : 'Når passer det? (valgfritt)'}
+        </Tekst>
+        <Tekst variant="underLiten">Velg dag og klokkeslett. Da havner det i kalenderen din.</Tekst>
+        <Dagstripe
+          dager={dagvalg}
+          valgt={u.dato || null}
+          etikett={(_d, i) => (i === 0 ? 'I dag' : i === 1 ? 'I morgen' : null)}
+          onVelg={(dato) =>
+            sett(u.dato === dato ? { dato: '', klokke: '' } : { dato, klokke: u.klokke || '12:00' })
+          }
+        />
+        {u.dato ? (
+          <>
+            <Chiprad>
+              {klokkevalg.map((k) => (
+                <Chip key={k} tekst={k} valgt={u.klokke === k} onPress={() => sett({ klokke: k })} />
+              ))}
+            </Chiprad>
+            <View style={styles.valgtTid}>
+              <Tekst variant="brodLiten" vekt={700} farge={farger.morkLilla} style={styles.flex}>
+                {tidspunkt ? tidtekst(tidspunkt) : ''}
+              </Tekst>
+              <Pressable accessibilityRole="button" onPress={() => sett({ dato: '', klokke: '' })} hitSlop={10}>
+                <Tekst variant="brodLiten" vekt={700} farge={farger.lilla} style={styles.understrek}>
+                  Ingen fast tid
+                </Tekst>
+              </Pressable>
+            </View>
+          </>
+        ) : (
+          <Tekst variant="underLiten">Ingen fast tid valgt. Dere kan avtale i chatten.</Tekst>
+        )}
+      </View>
 
       {/* Pris */}
       <View style={styles.gruppe}>
@@ -519,4 +564,14 @@ const styles = StyleSheet.create({
   bunnknapper: { gap: 8 },
   posisjonsknapp: { flex: 0, alignSelf: 'flex-start' },
   sentrert: { textAlign: 'center' },
+  valgtTid: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: farger.lysLilla,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  flex: { flex: 1 },
 });

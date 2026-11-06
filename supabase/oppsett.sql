@@ -345,3 +345,9 @@ begin
     alter publication supabase_realtime add table public.meldinger;
   end if;
 end $$;
+
+-- ─────────────────────────────────────────────────────────────
+-- Tidspunkt for annonser: brukes i «I dag» og kalenderen på forsiden
+-- ─────────────────────────────────────────────────────────────
+alter table public.annonser add column if not exists tidspunkt timestamptz;
+create index if not exists annonser_tidspunkt_idx on public.annonser (tidspunkt);
