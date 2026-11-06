@@ -2,13 +2,11 @@ import { router } from 'expo-router';
 import {
   BookOpen,
   Camera,
-  ClipboardList,
   Database,
   FileText,
   GraduationCap,
   Lock,
   LogOut,
-  Megaphone,
   MessageCircleHeart,
   Pencil,
   ShieldCheck,
@@ -18,24 +16,23 @@ import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { useBekreft } from '../../components/Dialog';
 import { Knapp } from '../../components/Knapp';
-import { Kort } from '../../components/Kort';
 import { Listevalg } from '../../components/Listevalg';
 import { Skjerm } from '../../components/Skjerm';
 import { Avatar, Pille, Seksjon, Statboks, Statrad } from '../../components/Smaabiter';
 import { Tekst } from '../../components/Tekst';
-import { BryterRad } from '../../components/Valg';
+import { Tekstglider } from '../../components/Tekstglider';
 import { useApp } from '../../lib/app-tilstand';
 import { useAnnonser } from '../../lib/annonser';
 import { hentFlereBilder } from '../../lib/bilde';
 import { kontaktEpost } from '../../lib/kontaktinfo';
 import { useKonto } from '../../lib/konto';
-import { gaFrem, gaTilFane, settRetning } from '../../lib/overgang';
+import { gaFrem, settRetning } from '../../lib/overgang';
 import { farger } from '../../lib/tema';
 
 const info = (side: string) => () => gaFrem({ pathname: '/info/[side]', params: { side } });
 
 export default function Profil() {
-  const { data, settStorreTekst, nullstill } = useApp();
+  const { data, nullstill } = useApp();
   const { profil, epost, loggUt, byttProfilbilde, session } = useKonto();
   const { visToast } = useApp();
   const bekreft = useBekreft();
@@ -82,7 +79,9 @@ export default function Profil() {
           {navn}
         </Tekst>
         <Tekst variant="under">{epost}</Tekst>
-        <Pille tekst={ungdom ? 'Vil hjelpe' : 'Trenger hjelp'} variant="lilla" />
+        <View>
+          <Pille tekst={ungdom ? 'Vil hjelpe' : 'Trenger hjelp'} variant="lilla" />
+        </View>
       </View>
 
       <Listevalg
@@ -91,31 +90,14 @@ export default function Profil() {
         undertekst={profil?.omrade ? `Navn og område · ${profil.omrade}` : 'Navn, område og rolle'}
         onPress={() => gaFrem('/om-meg')}
       />
-      {ungdom ? (
-        <>
-          <Statrad>
-            <Statboks etikett="Oppdrag fullført" verdi={String(fullfort.length)} />
-            <Statboks etikett="Vurdering" verdi={snitt ?? '–'} stjerne={Boolean(snitt)} />
-          </Statrad>
-          <Listevalg
-            ikon={ClipboardList}
-            tittel="Mine oppdrag"
-            undertekst="Det du har akseptert"
-            onPress={() => gaTilFane('/mine')}
-          />
-        </>
-      ) : (
-        <Listevalg
-          ikon={Megaphone}
-          tittel="Mine annonser"
-          undertekst="Legg ut, endre og slett"
-          onPress={() => gaTilFane('/mine')}
-        />
+      {ungdom && (
+        <Statrad>
+          <Statboks etikett="Oppdrag fullført" verdi={String(fullfort.length)} />
+          <Statboks etikett="Vurdering" verdi={snitt ?? '–'} stjerne={Boolean(snitt)} />
+        </Statrad>
       )}
 
-      <Kort>
-        <BryterRad etikett="Større tekst" pa={data.storreTekst} onEndre={settStorreTekst} />
-      </Kort>
+      <Tekstglider />
 
       {ungdom && (
         <>

@@ -52,6 +52,20 @@ export const tekststorrelser = {
 
 export type Tekststorrelse = keyof typeof tekststorrelser;
 
+// Fem trinn for tekststørrelse: to mindre, vanlig i midten, og to større.
+export const tekstnivaer = [
+  { niva: -2, navn: 'Minst', faktor: 0.85 },
+  { niva: -1, navn: 'Litt mindre', faktor: 0.92 },
+  { niva: 0, navn: 'Vanlig', faktor: 1 },
+  { niva: 1, navn: 'Litt større', faktor: 1.12 },
+  { niva: 2, navn: 'Størst', faktor: 1.25 },
+] as const;
+
+export function skriftstorrelse(variant: Tekststorrelse, niva: number) {
+  const faktor = tekstnivaer.find((t) => t.niva === niva)?.faktor ?? 1;
+  return Math.round(tekststorrelser[variant][0] * faktor);
+}
+
 export const ikonStrek = 1.8;
 
 export const priser = {

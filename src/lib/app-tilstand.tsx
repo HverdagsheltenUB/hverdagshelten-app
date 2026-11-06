@@ -20,6 +20,8 @@ export type Data = {
   vilkarGodtatt: boolean;
   omvisningSett: boolean;
   storreTekst: boolean;
+  // Tekststørrelse fra -2 (minst) til 2 (størst). 0 er vanlig. Mangler hos de som lagret før glideren kom.
+  tekstniva?: number;
   quizBestatt: boolean;
   meldinger: Melding[];
   rapporter: Rapport[];
@@ -45,7 +47,7 @@ type AppTilstand = {
   lastet: boolean;
   data: Data;
   endre: (fn: (d: Data) => Data) => void;
-  settStorreTekst: (pa: boolean) => void;
+  settTekstniva: (niva: number) => void;
   sendMelding: (tekst: string, svar?: string) => void;
   rapporter: (tekst: string) => void;
   // helt = også vilkår og omvisning (når kontoen slettes). Ellers beholdes de ved utlogging.
@@ -54,7 +56,7 @@ type AppTilstand = {
   visToast: (tekst: string) => void;
   // Kortnavn som mange skjermer bruker.
   rolle: Rolle | null;
-  storreTekst: boolean;
+  tekstniva: number;
 };
 
 const AppContext = createContext<AppTilstand | null>(null);
@@ -118,8 +120,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
       data,
       endre,
       rolle: data.rolle,
-      storreTekst: data.storreTekst,
-      settStorreTekst: (pa) => setData((d) => ({ ...d, storreTekst: pa })),
+      tekstniva: data.tekstniva ?? (data.storreTekst ? 1 : 0),
+      settTekstniva: (niva) =>
+        setData((d) => ({ ...d, tekstniva: Math.max(-2, Math.min(2, Math.round(niva))), storreTekst: niva > 0 })),
       sendMelding: (tekst, svar) => {
         const meg: Melding = { id: nyId('m'), fra: 'meg', tekst, tid: Date.now() };
         setData((d) => ({ ...d, meldinger: [...d.meldinger, meg] }));
@@ -148,6 +151,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setData((d) => ({
           ...startData(),
           storreTekst: d.storreTekst,
+          tekstniva: d.tekstniva,
           vilkarGodtatt: helt ? false : d.vilkarGodtatt,
           omvisningSett: helt ? false : d.omvisningSett,
         }));

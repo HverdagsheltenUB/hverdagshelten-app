@@ -10,15 +10,7 @@ import { Skjerm } from '../../components/Skjerm';
 import { Avatar, Pille, Seksjon } from '../../components/Smaabiter';
 import { useTakkJa } from '../../components/TakkJa';
 import { Tekst } from '../../components/Tekst';
-import {
-  dagerFraIdag,
-  dagtekst,
-  datonokkel,
-  maaneder,
-  ukedager,
-  useAnnonser,
-  type Annonse,
-} from '../../lib/annonser';
+import { dagerFraIdag, dagtekst, datonokkel, maaneder, ukedager, useAnnonser, type Annonse } from '../../lib/annonser';
 import { fornavn, useKonto } from '../../lib/konto';
 import { gaFrem, gaTilFane } from '../../lib/overgang';
 import { farger, ikonStrek } from '../../lib/tema';
@@ -98,10 +90,7 @@ function Dagsoversikt({ annonser, laster, hjelper }: { annonser: Annonse[]; last
     for (const liste of Object.values(m)) liste.sort((x, y) => (x.tidspunkt ?? '').localeCompare(y.tidspunkt ?? ''));
     return m;
   }, [annonser]);
-  const antall = useMemo(
-    () => Object.fromEntries(Object.entries(perDag).map(([n, l]) => [n, l.length])),
-    [perDag],
-  );
+  const antall = useMemo(() => Object.fromEntries(Object.entries(perDag).map(([n, l]) => [n, l.length])), [perDag]);
   // Avtalt, men uten fast tid: vises så det ikke blir borte.
   const utenTid = annonser.filter((a) => !a.tidspunkt && (a.status === 'akseptert' || a.status === 'pa_vei'));
 
@@ -116,61 +105,71 @@ function Dagsoversikt({ annonser, laster, hjelper }: { annonser: Annonse[]; last
     return <ActivityIndicator color={farger.lilla} size="large" style={styles.laster} />;
   }
 
+  // Hver del i sin egen blokk, med god luft mellom delene og litt mindre inni.
   return (
-    <>
-      <Seksjon tittel="I dag" hoyre={iDag.length > 0 && <Pille tekst={`${iDag.length} avtale${iDag.length === 1 ? '' : 'r'}`} variant="lilla" />} />
-      {iDag.length > 0 ? (
-        <View style={styles.liste}>
-          {iDag.map((a) => (
-            <Aktivitet key={a.id} annonse={a} undertekst={beskriv(a, hjelper)} onPress={() => apne(a)} />
-          ))}
-        </View>
-      ) : (
-        <Kort myk style={styles.tomDag}>
-          <View style={styles.solIkon}>
-            <Sun size={26} color={farger.morkLilla} strokeWidth={ikonStrek} />
+    <View style={styles.bolker}>
+      <View style={styles.blokk}>
+        <Seksjon
+          tittel="I dag"
+          hoyre={
+            iDag.length > 0 && <Pille tekst={`${iDag.length} avtale${iDag.length === 1 ? '' : 'r'}`} variant="lilla" />
+          }
+        />
+        {iDag.length > 0 ? (
+          <View style={styles.liste}>
+            {iDag.map((a) => (
+              <Aktivitet key={a.id} annonse={a} undertekst={beskriv(a, hjelper)} onPress={() => apne(a)} />
+            ))}
           </View>
-          <View style={styles.flex}>
-            <Tekst variant="listetittel" vekt={700}>
-              Ingenting planlagt i dag
-            </Tekst>
-            <Tekst variant="under">
-              {hjelper
-                ? 'Ta en titt på annonsene under. Kanskje noen trenger akkurat deg?'
-                : 'Nyt dagen! Når noen takker ja til en annonse, dukker det opp her.'}
-            </Tekst>
-          </View>
-        </Kort>
-      )}
+        ) : (
+          <Kort myk style={styles.tomDag}>
+            <View style={styles.solIkon}>
+              <Sun size={26} color={farger.morkLilla} strokeWidth={ikonStrek} />
+            </View>
+            <View style={styles.flex}>
+              <Tekst variant="listetittel" vekt={700}>
+                Ingenting planlagt i dag
+              </Tekst>
+              <Tekst variant="under">
+                {hjelper
+                  ? 'Ta en titt på annonsene under. Kanskje noen trenger akkurat deg?'
+                  : 'Nyt dagen! Når noen takker ja til en annonse, dukker det opp her.'}
+              </Tekst>
+            </View>
+          </Kort>
+        )}
+      </View>
 
-      <Seksjon tittel="De neste dagene" />
-      <Dagstripe dager={neste} valgt={valgtDag} onVelg={setValgt} antall={antall} />
-      {denDagen.length > 0 ? (
-        <View style={styles.liste}>
-          {denDagen.map((a) => (
-            <Aktivitet key={a.id} annonse={a} undertekst={beskriv(a, hjelper)} onPress={() => apne(a)} />
-          ))}
-        </View>
-      ) : (
-        <View style={styles.rolig}>
-          <CalendarHeart size={20} color={farger.dempet} strokeWidth={ikonStrek} />
-          <Tekst variant="under" style={styles.flex}>
-            Ingenting planlagt {dagtekst(valgtDato)}.
-          </Tekst>
-        </View>
-      )}
+      <View style={styles.blokk}>
+        <Seksjon tittel="De neste dagene" />
+        <Dagstripe dager={neste} valgt={valgtDag} onVelg={setValgt} antall={antall} />
+        {denDagen.length > 0 ? (
+          <View style={styles.liste}>
+            {denDagen.map((a) => (
+              <Aktivitet key={a.id} annonse={a} undertekst={beskriv(a, hjelper)} onPress={() => apne(a)} />
+            ))}
+          </View>
+        ) : (
+          <View style={styles.rolig}>
+            <CalendarHeart size={20} color={farger.dempet} strokeWidth={ikonStrek} />
+            <Tekst variant="under" style={styles.flex}>
+              Ingenting planlagt {dagtekst(valgtDato)}.
+            </Tekst>
+          </View>
+        )}
+      </View>
 
       {utenTid.length > 0 && (
-        <>
+        <View style={styles.blokk}>
           <Seksjon tittel="Avtalt, uten fast tid" />
           <View style={styles.liste}>
             {utenTid.map((a) => (
               <Aktivitet key={a.id} annonse={a} undertekst={beskriv(a, hjelper)} onPress={() => apne(a)} />
             ))}
           </View>
-        </>
+        </View>
       )}
-    </>
+    </View>
   );
 }
 
@@ -178,11 +177,13 @@ function Dagsoversikt({ annonser, laster, hjelper }: { annonser: Annonse[]; last
 const visPaForsiden = 4;
 
 function LedigeAnnonser({ etterTakkJa }: { etterTakkJa: () => Promise<void> }) {
-  const { annonser, laster, feil, oppdater } = useAnnonser({ bareLedige: true });
+  const { annonser, laster, feil, oppdater } = useAnnonser({
+    bareLedige: true,
+  });
   const { tar, sierJa } = useTakkJa(() => Promise.all([oppdater(), etterTakkJa()]));
 
   return (
-    <>
+    <View style={styles.blokk}>
       <Seksjon
         tittel="Trenger hjelp i nabolaget"
         hoyre={!laster && annonser.length > 0 && <Pille tekst={`${annonser.length} ledige`} variant="lilla" />}
@@ -213,12 +214,20 @@ function LedigeAnnonser({ etterTakkJa }: { etterTakkJa: () => Promise<void> }) {
           />
         </View>
       )}
-    </>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  velkomst: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  velkomst: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  bolker: { gap: 32 },
+  blokk: { gap: 14 },
   flex: { flex: 1 },
   liste: { gap: 12 },
   laster: { paddingVertical: 24 },
@@ -231,5 +240,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rolig: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 4 },
+  rolig: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 4,
+  },
 });
