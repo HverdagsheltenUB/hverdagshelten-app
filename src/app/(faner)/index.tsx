@@ -2,7 +2,7 @@ import { CalendarHeart, Search, Sparkles, Sun, WifiOff } from 'lucide-react-nati
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
-import { Tilbudskort, Tomtilstand } from '../../components/Annonse';
+import { Annonsegrid, Tomtilstand } from '../../components/Annonse';
 import { Aktivitet, Dagstripe } from '../../components/Kalender';
 import { Knapp } from '../../components/Knapp';
 import { Kort } from '../../components/Kort';
@@ -175,7 +175,7 @@ function Dagsoversikt({ annonser, laster, hjelper }: { annonser: Annonse[]; last
 }
 
 // De nyeste annonsene, med «Takk ja» rett på kortet. Alle, med søk og filtre, ligger under «Annonser».
-const visPaForsiden = 3;
+const visPaForsiden = 4;
 
 function LedigeAnnonser({ etterTakkJa }: { etterTakkJa: () => Promise<void> }) {
   const { annonser, laster, feil, oppdater } = useAnnonser({ bareLedige: true });
@@ -204,9 +204,7 @@ function LedigeAnnonser({ etterTakkJa }: { etterTakkJa: () => Promise<void> }) {
         />
       ) : (
         <View style={styles.liste}>
-          {annonser.slice(0, visPaForsiden).map((a) => (
-            <Tilbudskort key={a.id} annonse={a} tar={tar === a.id} onTakkJa={() => sierJa(a)} onApne={() => apne(a)} />
-          ))}
+          <Annonsegrid annonser={annonser.slice(0, visPaForsiden)} tar={tar} onTakkJa={sierJa} onApne={apne} />
           <Knapp
             variant="sekundar"
             ikon={Search}

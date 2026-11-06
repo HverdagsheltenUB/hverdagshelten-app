@@ -1,8 +1,8 @@
 import { CalendarClock, ExternalLink, HandHeart, MapPin, Search, X, type LucideIcon } from 'lucide-react-native';
-import { createElement, type ReactNode } from 'react';
+import { createElement, useState, type ReactNode } from 'react';
 import { Image, Linking, Platform, Pressable, StyleSheet, TextInput, View } from 'react-native';
 
-import { ikonFor, nartekst, omradelenke, pristekst, statustekst, tidtekst, type Annonse } from '../lib/annonser';
+import { ikonFor, klokkeslett, nartekst, omradelenke, pristekst, statustekst, tidtekst, dagtekst, type Annonse } from '../lib/annonser';
 import { farger, ikonStrek, skrift } from '../lib/tema';
 import { Knapp } from './Knapp';
 import { Kort } from './Kort';
@@ -91,66 +91,122 @@ export function Annonsekort({ annonse, onPress, hoyre }: { annonse: Annonse; onP
   );
 }
 
-// En ledig annonse på forsiden til hjelperne, med «Takk ja» rett på kortet.
-export function Tilbudskort({
-  annonse,
+// Annonser to og to ved siden av hverandre, så man ser flere på en gang.
+export function Annonsegrid({
+  annonser,
+  tar,
   onTakkJa,
   onApne,
+}: {
+  annonser: Annonse[];
+  tar: string | null;
+  onTakkJa: (a: Annonse) => void;
+  onApne: (a: Annonse) => void;
+}) {
+  const [bredde, setBredde] = useState(0);
+  const mellom = 12;
+  const kolonner = bredde > 900 ? 4 : bredde > 620 ? 3 : 2;
+  const kort = bredde ? Math.floor((bredde - mellom * (kolonner - 1)) / kolonner) : 0;
+  return (
+    <View style={styles.grid} onLayout={(e) => setBredde(e.nativeEvent.layout.width)}>
+      {kort > 0 &&
+        annonser.map((a) => (
+          <Annonseflis
+            key={a.id}
+            annonse={a}
+            bredde={kort}
+            tar={tar === a.id}
+            onTakkJa={() => onTakkJa(a)}
+            onApne={() => onApne(a)}
+          />
+        ))}
+    </View>
+  );
+}
+
+// Et lite annonsekort til rutenettet: bilde, tittel, betaling, når, område og «Takk ja».
+function Annonseflis({
+  annonse,
+  bredde,
   tar,
+  onTakkJa,
+  onApne,
 }: {
   annonse: Annonse;
+  bredde: number;
+  tar: boolean;
   onTakkJa: () => void;
   onApne: () => void;
-  tar: boolean;
 }) {
   const navn = annonse.profiler?.navn?.trim() || 'En bruker';
+  const tid = annonse.tidspunkt ? new Date(annonse.tidspunkt) : null;
+  const tidKort = tid ? `${dagtekst(tid).replace(/^./, (c) => c.toUpperCase())} ${klokkeslett(tid)}` : null;
   return (
-    <Kort style={styles.tilbud}>
+    <View style={[styles.flis, { width: bredde }]}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${annonse.tittel}, lagt ut av ${navn}. Åpne annonsen`}
+        accessibilityLabel={`${annonse.tittel}, ${pristekst(annonse)}, lagt ut av ${navn}. Åpne annonsen`}
         onPress={onApne}
-        style={({ pressed }) => [styles.tilbudTopp, pressed && styles.trykket]}
+        style={({ pressed }) => [styles.flisTopp, pressed && styles.trykket]}
       >
-        <View style={styles.person}>
-          <Avatar bokstav={(navn[0] ?? '?').toUpperCase()} bilde={annonse.profiler?.bilde} storrelse={40} />
-          <View style={styles.tekster}>
-            <Tekst variant="brodLiten" vekt={700} numberOfLines={1}>
+        <View style={styles.flisBilde}>
+          {annonse.bilder[0] ? (
+            <Image source={{ uri: annonse.bilder[0] }} style={StyleSheet.absoluteFill} resizeMode="cover" accessibilityIgnoresInvertColors />
+          ) : (
+            createElement(ikonFor(annonse.kategori), { size: 34, color: farger.morkLilla, strokeWidth: ikonStrek })
+          )}
+          <View style={styles.flisPille}>
+            <Pille tekst={annonse.type === 'hjelp' ? annonse.kategori : annonse.pris === 0 ? 'Gis bort' : 'Til salgs'} variant="lilla" />
+          </View>
+        </View>
+        <View style={styles.flisTekst}>
+          <Tekst variant="brodLiten" vekt={800} numberOfLines={2}>
+            {annonse.tittel}
+          </Tekst>
+          <Tekst variant="underLiten" vekt={700} farge={farger.morkLilla} numberOfLines={1}>
+            {pristekst(annonse)}
+          </Tekst>
+          {tidKort && (
+            <View style={styles.sted}>
+              <CalendarClock size={15} color={farger.dempet} strokeWidth={ikonStrek} />
+              <Tekst variant="underLiten" numberOfLines={1} style={styles.flex}>
+                {tidKort}
+              </Tekst>
+            </View>
+          )}
+          {annonse.sted.trim() ? (
+            <View style={styles.sted}>
+              <MapPin size={15} color={farger.dempet} strokeWidth={ikonStrek} />
+              <Tekst variant="underLiten" numberOfLines={1} style={styles.flex}>
+                {annonse.sted.trim()}
+              </Tekst>
+            </View>
+          ) : null}
+          <View style={styles.sted}>
+            <Avatar bokstav={(navn[0] ?? '?').toUpperCase()} bilde={annonse.profiler?.bilde} storrelse={22} />
+            <Tekst variant="underLiten" numberOfLines={1} style={styles.flex}>
               {navn}
             </Tekst>
-            <Tekst variant="underLiten">Lagt ut {nartekst(annonse.opprettet)}</Tekst>
-          </View>
-          <Pille
-            tekst={annonse.type === 'hjelp' ? annonse.kategori : annonse.pris === 0 ? 'Gis bort' : 'Til salgs'}
-            variant={annonse.type === 'hjelp' ? 'lilla' : 'fersken'}
-          />
-        </View>
-        <View style={styles.tilbudInnhold}>
-          {annonse.bilder[0] ? <Annonsebilde annonse={annonse} storrelse={72} /> : null}
-          <View style={styles.tekster}>
-            <Tekst variant="listetittel" vekt={800} numberOfLines={2}>
-              {annonse.tittel}
-            </Tekst>
-            {annonse.beskrivelse ? (
-              <Tekst variant="under" numberOfLines={3}>
-                {annonse.beskrivelse}
-              </Tekst>
-            ) : null}
           </View>
         </View>
       </Pressable>
-      <View style={styles.fakta}>
-        <Tidlinje tidspunkt={annonse.tidspunkt} />
-        <Omradelinje sted={annonse.sted} />
-        <Tekst variant="brodLiten" vekt={700} farge={farger.morkLilla}>
-          {pristekst(annonse)}
-        </Tekst>
+      <View style={styles.flisBunn}>
+        {annonse.sted.trim() ? (
+          <Pressable
+            accessibilityRole="link"
+            accessibilityLabel={`Vis ${annonse.sted.trim()} på Google Maps`}
+            onPress={() => Linking.openURL(omradelenke(annonse.sted)).catch(() => {})}
+            hitSlop={8}
+            style={({ pressed }) => [styles.sted, pressed && styles.trykket]}
+          >
+            <Tekst variant="underLiten" vekt={700} farge={farger.lilla} style={styles.understrek} numberOfLines={1}>
+              Vis på Google Maps
+            </Tekst>
+          </Pressable>
+        ) : null}
+        <Knapp liten ikon={HandHeart} tekst="Takk ja" laster={tar} onPress={onTakkJa} style={styles.flisKnapp} />
       </View>
-      <View style={styles.tilbudKnapper}>
-        <Knapp ikon={HandHeart} tekst="Takk ja" laster={tar} onPress={onTakkJa} style={styles.flex} />
-        <Knapp variant="sekundar" tekst="Les mer" onPress={onApne} style={styles.flex} />
-      </View>
-    </Kort>
+    </View>
   );
 }
 
@@ -158,7 +214,9 @@ export function Sokefelt({ verdi, onEndre }: { verdi: string; onEndre: (t: strin
   const fontSize = useTekststorrelse('brod');
   return (
     <View style={styles.sok}>
-      <Search size={22} color={farger.dempet} strokeWidth={ikonStrek} />
+      <View style={styles.fast}>
+        <Search size={22} color={farger.dempet} strokeWidth={ikonStrek} />
+      </View>
       <TextInput
         value={verdi}
         onChangeText={onEndre}
@@ -274,8 +332,10 @@ const styles = StyleSheet.create({
     backgroundColor: farger.hvit,
     paddingHorizontal: 18,
   },
+  fast: { flexShrink: 0 },
   sokInput: {
     flex: 1,
+    minWidth: 0,
     color: farger.tekst,
     paddingVertical: 12,
   },
@@ -287,12 +347,26 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
-  tilbud: { gap: 14, padding: 16 },
-  tilbudTopp: { gap: 12 },
-  person: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  tilbudInnhold: { flexDirection: 'row', gap: 12, alignItems: 'flex-start' },
-  fakta: { gap: 6 },
-  tilbudKnapper: { flexDirection: 'row', gap: 10 },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  flis: {
+    backgroundColor: farger.kort,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: farger.linje,
+    overflow: 'hidden',
+    justifyContent: 'space-between',
+  },
+  flisTopp: { gap: 0 },
+  flisBilde: {
+    height: 110,
+    backgroundColor: farger.fersken,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  flisPille: { position: 'absolute', left: 8, top: 8, right: 8 },
+  flisTekst: { padding: 10, paddingBottom: 6, gap: 4 },
+  flisBunn: { paddingHorizontal: 10, paddingBottom: 10, gap: 8 },
+  flisKnapp: { flex: 0, minHeight: 46 },
   flex: { flex: 1 },
   omrade: {
     flexDirection: 'row',

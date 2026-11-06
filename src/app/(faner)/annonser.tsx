@@ -1,18 +1,37 @@
 import { Redirect } from 'expo-router';
-import { SearchX, Sparkles, WifiOff } from 'lucide-react-native';
+import { SearchX, SlidersHorizontal, Sparkles, WifiOff, X } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
-import { Sokefelt, Tilbudskort, Tomtilstand } from '../../components/Annonse';
+import { Annonsegrid, Sokefelt, Tomtilstand } from '../../components/Annonse';
+import { Knapp } from '../../components/Knapp';
+import { Kort } from '../../components/Kort';
 import { Skjerm } from '../../components/Skjerm';
 import { Overskrift, Pille, Seksjon } from '../../components/Smaabiter';
 import { useTakkJa } from '../../components/TakkJa';
 import { Tekst } from '../../components/Tekst';
-import { Chip } from '../../components/Valg';
+import { Chip, Chiprad } from '../../components/Valg';
 import { annonsekategorier, useAnnonser, type Annonse } from '../../lib/annonser';
 import { useKonto } from '../../lib/konto';
 import { gaFrem } from '../../lib/overgang';
-import { farger } from '../../lib/tema';
+import { farger, ikonStrek } from '../../lib/tema';
+
+type Betaling = 'alle' | 'minst100' | 'minst150' | 'minst200' | 'avtale';
+const betalingsvalg: { verdi: Betaling; tekst: string }[] = [
+  { verdi: 'alle', tekst: 'Alle' },
+  { verdi: 'minst100', tekst: 'Minst 100 kr' },
+  { verdi: 'minst150', tekst: 'Minst 150 kr' },
+  { verdi: 'minst200', tekst: 'Minst 200 kr' },
+  { verdi: 'avtale', tekst: 'Etter avtale' },
+];
+const minstePris: Partial<Record<Betaling, number>> = { minst100: 100, minst150: 150, minst200: 200 };
+
+function passerBetaling(a: Annonse, b: Betaling) {
+  if (b === 'alle') return true;
+  if (b === 'avtale') return a.pris === null;
+  // Betaling per time gjelder hjelp-annonser.
+  return a.type === 'hjelp' && a.pris !== null && a.pris >= (minstePris[b] ?? 0);
+}
 
 const stedNokkel = (s: string) => s.trim().toLowerCase();
 
@@ -36,6 +55,8 @@ function Annonseliste() {
   const [sok, setSok] = useState('');
   const [sted, setSted] = useState<string | null>(null);
   const [arbeid, setArbeid] = useState<string | null>(null);
+  const [betaling, setBetaling] = useState<Betaling>('alle');
+  const [apen, setApen] = useState(false);
 
   // Stedene som finnes i annonsene, de vanligste først.
   const steder = useMemo(() => {
@@ -64,49 +85,105 @@ function Annonseliste() {
       annonser
         .filter((a) => !sted || stedNokkel(a.sted) === sted)
         .filter((a) => !arbeid || a.kategori === arbeid)
+        .filter((a) => passerBetaling(a, betaling))
         .filter((a) => passer(a, sok.trim())),
-    [annonser, sted, arbeid, sok],
+    [annonser, sted, arbeid, betaling, sok],
   );
-  const filtrerer = Boolean(sok.trim() || sted || arbeid);
-  const nullstill = () => {
-    setSok('');
+
+  const valgte = [
+    sted ? steder.find(([n]) => n === sted)?.[1].navn ?? sted : null,
+    arbeid,
+    betaling !== 'alle' ? `${betalingsvalg.find((b) => b.verdi === betaling)?.tekst}${betaling === 'avtale' ? '' : ' per time'}` : null,
+  ].filter((v): v is string => Boolean(v));
+  const filtrerer = Boolean(sok.trim() || valgte.length);
+  const nullstillFilter = () => {
     setSted(null);
     setArbeid(null);
+    setBetaling('alle');
+  };
+  const nullstill = () => {
+    setSok('');
+    nullstillFilter();
   };
 
   return (
     <Skjerm oppdater={oppdater}>
-      <Overskrift tittel="Annonser" undertekst="Finn noen du kan hjelpe. Søk, eller velg sted og type arbeid." />
-      <Sokefelt verdi={sok} onEndre={setSok} />
-
-      <View style={styles.filter}>
-        <Tekst variant="brodLiten" vekt={700}>
-          Sted
-        </Tekst>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chiprad} style={styles.rulle}>
-          <Chip tekst="Alle steder" valgt={!sted} onPress={() => setSted(null)} />
-          {steder.map(([n, s]) => (
-            <Chip key={n} tekst={`${s.navn} (${s.antall})`} valgt={sted === n} onPress={() => setSted(sted === n ? null : n)} />
-          ))}
-        </ScrollView>
+      <Overskrift tittel="Annonser" undertekst="Finn noen du kan hjelpe. Søk, eller åpne filteret." />
+      <View style={styles.sokerad}>
+        <View style={styles.flex}>
+          <Sokefelt verdi={sok} onEndre={setSok} />
+        </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={apen ? 'Lukk filteret' : 'Åpne filteret'}
+          accessibilityState={{ expanded: apen }}
+          onPress={() => setApen(!apen)}
+          style={({ pressed }) => [styles.filterknapp, (apen || valgte.length > 0) && styles.filterknappAktiv, pressed && styles.trykket]}
+        >
+          <SlidersHorizontal size={22} color={apen || valgte.length > 0 ? farger.hvit : farger.morkLilla} strokeWidth={ikonStrek} />
+          <Tekst variant="brodLiten" vekt={700} farge={apen || valgte.length > 0 ? farger.hvit : farger.morkLilla}>
+            Filter{valgte.length ? ` (${valgte.length})` : ''}
+          </Tekst>
+        </Pressable>
       </View>
 
-      <View style={styles.filter}>
-        <Tekst variant="brodLiten" vekt={700}>
-          Arbeid
-        </Tekst>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chiprad} style={styles.rulle}>
-          <Chip tekst="Alt" valgt={!arbeid} onPress={() => setArbeid(null)} />
-          {arbeidstyper.map((k) => (
-            <Chip
-              key={k.navn}
-              tekst={`${k.navn} (${k.antall})`}
-              valgt={arbeid === k.navn}
-              onPress={() => setArbeid(arbeid === k.navn ? null : k.navn)}
-            />
-          ))}
-        </ScrollView>
-      </View>
+      {apen ? (
+        <Kort style={styles.filterboks}>
+          <View style={styles.gruppe}>
+            <Tekst variant="brodLiten" vekt={700}>
+              Sted
+            </Tekst>
+            <Chiprad>
+              <Chip tekst="Alle steder" valgt={!sted} onPress={() => setSted(null)} />
+              {steder.map(([n, st]) => (
+                <Chip key={n} tekst={`${st.navn} (${st.antall})`} valgt={sted === n} onPress={() => setSted(sted === n ? null : n)} />
+              ))}
+            </Chiprad>
+          </View>
+          <View style={styles.gruppe}>
+            <Tekst variant="brodLiten" vekt={700}>
+              Arbeid
+            </Tekst>
+            <Chiprad>
+              <Chip tekst="Alt" valgt={!arbeid} onPress={() => setArbeid(null)} />
+              {arbeidstyper.map((k) => (
+                <Chip
+                  key={k.navn}
+                  tekst={`${k.navn} (${k.antall})`}
+                  valgt={arbeid === k.navn}
+                  onPress={() => setArbeid(arbeid === k.navn ? null : k.navn)}
+                />
+              ))}
+            </Chiprad>
+          </View>
+          <View style={styles.gruppe}>
+            <Tekst variant="brodLiten" vekt={700}>
+              Betaling per time
+            </Tekst>
+            <Chiprad>
+              {betalingsvalg.map((b) => (
+                <Chip key={b.verdi} tekst={b.tekst} valgt={betaling === b.verdi} onPress={() => setBetaling(b.verdi)} />
+              ))}
+            </Chiprad>
+          </View>
+          <View style={styles.knapper}>
+            <Knapp liten variant="sekundar" tekst="Nullstill" deaktivert={!valgte.length} onPress={nullstillFilter} />
+            <Knapp liten tekst={`Vis ${treff.length} annonse${treff.length === 1 ? '' : 'r'}`} onPress={() => setApen(false)} />
+          </View>
+        </Kort>
+      ) : valgte.length > 0 ? (
+        <View style={styles.valgte}>
+          <Tekst variant="underLiten" style={styles.flex} numberOfLines={2}>
+            Filter: <Tekst variant="underLiten" vekt={700} farge={farger.tekst}>{valgte.join(' · ')}</Tekst>
+          </Tekst>
+          <Pressable accessibilityRole="button" accessibilityLabel="Fjern filteret" onPress={nullstillFilter} hitSlop={10} style={styles.fjern}>
+            <X size={16} color={farger.lilla} strokeWidth={2.4} />
+            <Tekst variant="underLiten" vekt={700} farge={farger.lilla}>
+              Fjern
+            </Tekst>
+          </Pressable>
+        </View>
+      ) : null}
 
       <Seksjon
         tittel={filtrerer ? 'Treff' : 'Alle ledige annonser'}
@@ -132,30 +209,41 @@ function Annonseliste() {
         <Tomtilstand
           ikon={SearchX}
           tittel={sok.trim() ? `Ingen treff på «${sok.trim()}»` : 'Ingen annonser med disse valgene'}
-          tekst="Prøv et annet ord, et annet sted eller en annen type arbeid."
+          tekst="Prøv et annet ord, eller endre filteret."
           knapp={{ tekst: 'Vis alle annonser', onPress: nullstill }}
         />
       ) : (
-        <View style={styles.liste}>
-          {treff.map((a) => (
-            <Tilbudskort
-              key={a.id}
-              annonse={a}
-              tar={tar === a.id}
-              onTakkJa={() => sierJa(a)}
-              onApne={() => gaFrem({ pathname: '/annonse/[id]', params: { id: a.id } })}
-            />
-          ))}
-        </View>
+        <Annonsegrid
+          annonser={treff}
+          tar={tar}
+          onTakkJa={sierJa}
+          onApne={(a) => gaFrem({ pathname: '/annonse/[id]', params: { id: a.id } })}
+        />
       )}
     </Skjerm>
   );
 }
 
 const styles = StyleSheet.create({
-  filter: { gap: 8 },
-  rulle: { marginHorizontal: -20 },
-  chiprad: { gap: 10, paddingHorizontal: 20 },
-  liste: { gap: 12 },
+  flex: { flex: 1 },
+  sokerad: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  filterknapp: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    minHeight: 56,
+    paddingHorizontal: 16,
+    borderRadius: 999,
+    borderWidth: 1.5,
+    borderColor: farger.linje,
+    backgroundColor: farger.hvit,
+  },
+  filterknappAktiv: { backgroundColor: farger.lilla, borderColor: farger.lilla },
+  trykket: { opacity: 0.8 },
+  filterboks: { gap: 18, padding: 16 },
+  gruppe: { gap: 8 },
+  knapper: { flexDirection: 'row', gap: 10 },
+  valgte: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  fjern: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   laster: { paddingVertical: 32 },
 });

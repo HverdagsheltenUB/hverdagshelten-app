@@ -411,9 +411,9 @@ export function Annonseskjema({ eksisterende }: Props) {
       <View style={styles.gruppe}>
         {!u.gratis && (
           <Tekstfelt
-            etikett={erTing ? 'Pris i kroner (valgfritt)' : 'Hva vil du betale? (valgfritt)'}
+            etikett={erTing ? 'Pris i kroner (valgfritt)' : 'Betaling per time (valgfritt)'}
             hjelpetekst={
-              erTing ? 'La feltet stå tomt hvis prisen er etter avtale.' : 'Vanlig er 150 kr per time. Tomt betyr etter avtale.'
+              erTing ? 'La feltet stå tomt hvis prisen er etter avtale.' : 'Hvor mye du betaler per time. Vanlig er 150 kr. Tomt betyr etter avtale.'
             }
             value={u.pris}
             onChangeText={(pris) => sett({ pris: pris.replace(/\D/g, '').slice(0, 7) })}

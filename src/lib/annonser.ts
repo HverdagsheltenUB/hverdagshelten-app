@@ -166,7 +166,9 @@ export const leveringstekst: Record<Levering, string> = {
 export function pristekst(a: { pris: number | null; type: Annonsetype }) {
   if (a.pris === 0) return 'Gratis';
   if (a.pris === null) return a.type === 'hjelp' ? 'Betaling etter avtale' : 'Pris etter avtale';
-  return `${String(a.pris).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} kr`;
+  const kr = `${String(a.pris).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} kr`;
+  // For hjelp er beløpet det man betaler per time.
+  return a.type === 'hjelp' ? `${kr} per time` : kr;
 }
 
 // «for 5 minutter siden», «i går», «3. nov.»
