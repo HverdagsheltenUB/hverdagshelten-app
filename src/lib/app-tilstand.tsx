@@ -1,101 +1,62 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
-import { anne, finnHjelper, megUngdom, startOppdrag, type Oppdrag, type Person } from './eksempeldata';
-import { prisFor, animasjon } from './tema';
+import { animasjon } from './tema';
 
 export type Rolle = 'eldre' | 'ungdom';
 
 export type Toast = { id: number; tekst: string };
 
-export type Parorende = { id: string; navn: string; relasjon: string; telefon: string; faarBeskjed: boolean };
-
 export type Melding = { id: string; fra: 'meg' | 'team' | 'automatisk'; tekst: string; tid: number };
 
-export type Rapport = { id: string; oppdragId?: string; rolle: Rolle; tekst: string; tid: number; fulgtOpp: boolean };
+export type Rapport = { id: string; rolle: Rolle; tekst: string; tid: number };
 
-// Alt som lagres på telefonen, så avtalene vises selv uten nett.
-// Senere ligger dette i Supabase (i EU), og telefonen har bare en kopi.
+// Innstillinger som bare gjelder denne telefonen. Kontoen, profilen og annonsene
+// ligger i Supabase, så de er de samme uansett hvilken telefon man logger inn på.
 export type Data = {
-  versjon: 2;
+  versjon: 3;
   rolle: Rolle | null;
   innlogget: boolean;
   vilkarGodtatt: boolean;
   omvisningSett: boolean;
   storreTekst: boolean;
-  varsler: { paminnelse: boolean; bekreftelse: boolean; nyeOppdrag: boolean; sms: boolean };
-  eldre: Person & { tingAVite: string[]; annetAVite: string };
-  parorende: Parorende[];
-  ungdom: {
-    alder: number;
-    bankId: boolean;
-    foresattGodkjent: boolean;
-    foresatt: { navn: string; telefon: string };
-    varselTilForesatt: boolean;
-    grenser: { maksKm: number; sistKl: number };
-    quizBestatt: boolean;
-    likerAHjelpeMed: string[];
-    tilgjengelig: string[];
-    utbetalingTil: 'Vipps' | 'Konto';
-  };
-  oppdrag: Oppdrag[];
+  // Tekststørrelse fra -2 (minst) til 2 (størst). 0 er vanlig. Mangler hos de som lagret før glideren kom.
+  tekstniva?: number;
+  quizBestatt: boolean;
   meldinger: Melding[];
   rapporter: Rapport[];
-  godkjenteHjelpere: string[];
 };
 
 function startData(): Data {
   return {
-    versjon: 2,
+    versjon: 3,
     rolle: null,
     innlogget: false,
     vilkarGodtatt: false,
     omvisningSett: false,
     storreTekst: false,
-    varsler: { paminnelse: true, bekreftelse: true, nyeOppdrag: true, sms: false },
-    eldre: { ...anne, tingAVite: ['Går sakte'], annetAVite: '' },
-    parorende: [{ id: 'lise', navn: 'Lise Hansen', relasjon: 'datter', telefon: '922 45 678', faarBeskjed: true }],
-    ungdom: {
-      alder: megUngdom.alder,
-      bankId: false,
-      foresattGodkjent: false,
-      foresatt: { navn: 'Mari Berg', telefon: '934 11 220' },
-      varselTilForesatt: true,
-      grenser: { maksKm: 2, sistKl: 20 },
-      quizBestatt: false,
-      likerAHjelpeMed: ['Tur sammen', 'Mobilhjelp', 'Lufte hunden'],
-      tilgjengelig: ['Ettermiddag', 'Lørdag', 'Søndag'],
-      utbetalingTil: 'Vipps',
-    },
-    oppdrag: startOppdrag(),
+    quizBestatt: false,
     meldinger: [],
     rapporter: [],
-    godkjenteHjelpere: [],
   };
 }
 
 const lagringsnokkel = 'hverdagshelten:data';
 
-export type NyBestilling = Omit<Oppdrag, 'id' | 'status' | 'opprettet' | 'avstandKm' | 'bestiltAvMeg'>;
-
 type AppTilstand = {
   lastet: boolean;
   data: Data;
   endre: (fn: (d: Data) => Data) => void;
-  velgRolle: (rolle: Rolle) => void;
-  settStorreTekst: (pa: boolean) => void;
-  sendBestilling: (b: NyBestilling) => string;
-  endreOppdrag: (id: string, endring: Partial<Oppdrag>) => void;
-  taOppdrag: (id: string) => void;
-  tjentDenneManeden: number;
+  settTekstniva: (niva: number) => void;
   sendMelding: (tekst: string, svar?: string) => void;
-  rapporter: (tekst: string, oppdragId?: string) => void;
-  slettAlt: () => void;
+  rapporter: (tekst: string) => void;
+  // helt = også vilkår og omvisning (når kontoen slettes). Ellers beholdes de ved utlogging.
+  nullstill: (helt?: boolean) => void;
   toast: Toast | null;
   visToast: (tekst: string) => void;
   // Kortnavn som mange skjermer bruker.
   rolle: Rolle | null;
-  storreTekst: boolean;
+  tekstniva: number;
 };
 
 const AppContext = createContext<AppTilstand | null>(null);
@@ -111,24 +72,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [lastet, setLastet] = useState(false);
   const [toast, setToast] = useState<Toast | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const simuleringer = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const dataRef = useRef(data);
-  useEffect(() => {
-    dataRef.current = data;
-  }, [data]);
+  const svartimere = useRef<ReturnType<typeof setTimeout>[]>([]);
 
-  // Hent det som er lagret på telefonen.
+  // Hent det som er lagret på telefonen. Gamle testdata (versjon 2 med eksempelavtaler) kastes.
   useEffect(() => {
     let avbrutt = false;
     AsyncStorage.getItem(lagringsnokkel)
       .then((tekst) => {
         if (avbrutt || !tekst) return;
         const lagret = JSON.parse(tekst) as Data;
-        if (lagret.versjon === 2) setData(lagret);
+        if (lagret.versjon === 3) setData(lagret);
       })
-      .catch(() => {
-        // Klarer vi ikke å lese, starter vi bare med eksempeldata.
-      })
+      .catch(() => {})
       .finally(() => {
         if (!avbrutt) setLastet(true);
       });
@@ -147,7 +102,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [data, lastet]);
 
   useEffect(() => {
-    const liste = simuleringer.current;
+    const liste = svartimere.current;
     return () => liste.forEach(clearTimeout);
   }, []);
 
@@ -159,64 +114,20 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const endre = useCallback((fn: (d: Data) => Data) => setData(fn), []);
 
-  const endreOppdrag = useCallback(
-    (id: string, endring: Partial<Oppdrag>) =>
-      setData((d) => ({ ...d, oppdrag: d.oppdrag.map((o) => (o.id === id ? { ...o, ...endring } : o)) })),
-    [],
-  );
-
-  const verdi = useMemo<AppTilstand>(() => {
-    const na = new Date();
-    const tjentDenneManeden = data.oppdrag
-      .filter((o) => o.hjelperId === megUngdom.id && o.status === 'ferdig')
-      .filter((o) => {
-        const [a, m] = o.dato.split('-').map(Number);
-        return a === na.getFullYear() && m === na.getMonth() + 1;
-      })
-      .reduce((sum, o) => sum + prisFor(o.varighet).hjelp, 0);
-
-    return {
+  const verdi = useMemo<AppTilstand>(
+    () => ({
       lastet,
       data,
       endre,
       rolle: data.rolle,
-      storreTekst: data.storreTekst,
-      velgRolle: (rolle) => setData((d) => ({ ...d, rolle })),
-      settStorreTekst: (pa) => setData((d) => ({ ...d, storreTekst: pa })),
-      sendBestilling: (b) => {
-        const id = nyId('bestilling');
-        const nytt: Oppdrag = {
-          ...b,
-          id,
-          status: 'sendt',
-          opprettet: Date.now(),
-          avstandKm: b.mottaker.omrade === anne.omrade ? 1.4 : 2.4,
-          bestiltAvMeg: true,
-        };
-        setData((d) => ({ ...d, oppdrag: [...d.oppdrag, nytt] }));
-        // I testversjonen later vi som om en hjelper sier ja etter noen sekunder,
-        // så man kan se hvordan det ser ut. Ønsket hjelper får det først.
-        const hjelperId = b.onsketHjelperId ?? 'sara';
-        simuleringer.current.push(
-          setTimeout(() => {
-            const o = dataRef.current.oppdrag.find((x) => x.id === id);
-            if (!o || o.status !== 'sendt' || o.hjelperId) return;
-            endreOppdrag(id, { status: 'bekreftet', hjelperId });
-            if (dataRef.current.rolle === 'eldre') {
-              visToast(`${finnHjelper(hjelperId)?.fornavn ?? 'En hjelper'} har sagt ja til å hjelpe deg!`);
-            }
-          }, 9000),
-        );
-        return id;
-      },
-      endreOppdrag,
-      taOppdrag: (id) => endreOppdrag(id, { status: 'bekreftet', hjelperId: megUngdom.id }),
-      tjentDenneManeden,
+      tekstniva: data.tekstniva ?? (data.storreTekst ? 1 : 0),
+      settTekstniva: (niva) =>
+        setData((d) => ({ ...d, tekstniva: Math.max(-2, Math.min(2, Math.round(niva))), storreTekst: niva > 0 })),
       sendMelding: (tekst, svar) => {
         const meg: Melding = { id: nyId('m'), fra: 'meg', tekst, tid: Date.now() };
         setData((d) => ({ ...d, meldinger: [...d.meldinger, meg] }));
         if (svar) {
-          simuleringer.current.push(
+          svartimere.current.push(
             setTimeout(() => {
               const fra = svar.startsWith('team:') ? 'team' : 'automatisk';
               const svartekst = svar.replace(/^team:/, '');
@@ -228,24 +139,28 @@ export function AppProvider({ children }: { children: ReactNode }) {
           );
         }
       },
-      rapporter: (tekst, oppdragId) =>
+      rapporter: (tekst) =>
         setData((d) => ({
           ...d,
-          rapporter: [
-            ...d.rapporter,
-            { id: nyId('r'), oppdragId, rolle: d.rolle ?? 'eldre', tekst, tid: Date.now(), fulgtOpp: false },
-          ],
+          rapporter: [...d.rapporter, { id: nyId('r'), rolle: d.rolle ?? 'eldre', tekst, tid: Date.now() }],
         })),
-      slettAlt: () => {
-        simuleringer.current.forEach(clearTimeout);
-        simuleringer.current = [];
-        setData(startData());
-        AsyncStorage.removeItem(lagringsnokkel).catch(() => {});
+      // Tømmer det som er lagret på telefonen (ved utlogging og sletting av kontoen).
+      nullstill: (helt = false) => {
+        svartimere.current.forEach(clearTimeout);
+        svartimere.current = [];
+        setData((d) => ({
+          ...startData(),
+          storreTekst: d.storreTekst,
+          tekstniva: d.tekstniva,
+          vilkarGodtatt: helt ? false : d.vilkarGodtatt,
+          omvisningSett: helt ? false : d.omvisningSett,
+        }));
       },
       toast,
       visToast,
-    };
-  }, [data, lastet, endre, endreOppdrag, toast, visToast]);
+    }),
+    [data, lastet, endre, toast, visToast],
+  );
 
   return <AppContext.Provider value={verdi}>{children}</AppContext.Provider>;
 }

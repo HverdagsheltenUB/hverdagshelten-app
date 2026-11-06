@@ -3,14 +3,19 @@ import {
   ArrowRight,
   BadgeCheck,
   CalendarDays,
+  CircleAlert,
+  Eye,
+  EyeOff,
   HandHeart,
   Heart,
+  LogIn,
   MessageCircleHeart,
   ShieldCheck,
   UserCheck,
+  UserPlus,
 } from 'lucide-react-native';
 import { useState } from 'react';
-import { Image, StyleSheet, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 
 import { Infoboks } from '../components/Ekstra';
 import { Knapp } from '../components/Knapp';
@@ -22,52 +27,53 @@ import { Overskrift } from '../components/Smaabiter';
 import { Tekst } from '../components/Tekst';
 import { Chip, Chiprad } from '../components/Valg';
 import { useApp, type Rolle } from '../lib/app-tilstand';
+import { supabaseKlar } from '../lib/konfig';
+import { kontaktEpost } from '../lib/kontaktinfo';
+import { useKonto } from '../lib/konto';
 import { gaFrem, settRetning } from '../lib/overgang';
 import { farger, regler } from '../lib/tema';
 
-type Steg = 'velkommen' | 'rolle' | 'vipps' | 'alder' | 'bankid' | 'foresatt' | 'vilkar' | 'omvisning';
+type Steg = 'velkommen' | 'konto' | 'opprett' | 'logginn' | 'rolle' | 'vilkar' | 'omvisning';
 
 const vippsOransje = '#FF5B24';
 
-// Første gang appen åpnes: velg rolle, logg inn, godta vilkår og en kort omvisning.
+// Første gang appen åpnes: opprett bruker eller logg inn, godta vilkår og en kort omvisning.
 export default function Oppstart() {
-  const { data, endre, visToast } = useApp();
-  const [steg, setSteg] = useState<Steg>(() => {
-    if (data.innlogget && data.rolle) return 'vilkar';
+  const { data, endre } = useApp();
+  const konto = useKonto();
+  const [valgtSteg, setSteg] = useState<Steg>(() => {
+    if (konto.session && konto.profil && !konto.profil.rolle) return 'rolle';
+    if (konto.session) return 'vilkar';
     return 'velkommen';
   });
   const [historikk, setHistorikk] = useState<Steg[]>([]);
   const [laster, setLaster] = useState(false);
+  const [feil, setFeil] = useState<string | null>(null);
   const [godtatt, setGodtatt] = useState(false);
   const [omvisningSide, setOmvisningSide] = useState(0);
-  const [foresatt, setForesatt] = useState(data.ungdom.foresatt);
-  const rolle = data.rolle;
+  const [navn, setNavn] = useState('');
+  const [rolle, setRolle] = useState<Rolle | null>(null);
+  const [epost, setEpost] = useState('');
+  const [passord, setPassord] = useState('');
+  const [visPassord, setVisPassord] = useState(false);
+
+  // Hvis noen er innlogget men mangler rolle (f.eks. etter innlogging på ny telefon), spør om den.
+  const manglerRolle = Boolean(konto.session && konto.profil && !konto.profil.rolle);
+  const steg: Steg = manglerRolle ? 'rolle' : valgtSteg;
 
   function ga(nytt: Steg) {
     settRetning('frem');
+    setFeil(null);
     setHistorikk((h) => [...h, steg]);
     setSteg(nytt);
   }
 
   function tilbake() {
     settRetning('tilbake');
+    setFeil(null);
     const forrige = historikk[historikk.length - 1];
     setHistorikk((h) => h.slice(0, -1));
     if (forrige) setSteg(forrige);
-  }
-
-  // Liten pause, så det kjennes som en ekte innlogging. Byttes ut med Vipps Login og BankID senere.
-  function vent(ms: number, ferdig: () => void) {
-    setLaster(true);
-    setTimeout(() => {
-      setLaster(false);
-      ferdig();
-    }, ms);
-  }
-
-  function velgRolle(r: Rolle) {
-    endre((d) => ({ ...d, rolle: r }));
-    ga('vipps');
   }
 
   function ferdig() {
@@ -76,7 +82,14 @@ export default function Oppstart() {
     router.replace('/');
   }
 
+  function etterInnlogging() {
+    if (data.vilkarGodtatt) ferdig();
+    else ga('vilkar');
+  }
+
   const tilbakelenke = historikk.length > 0 ? { onPress: tilbake } : undefined;
+  const epostOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(epost.trim());
+  const passordOk = passord.length >= 6;
 
   if (steg === 'velkommen') {
     return (
@@ -99,146 +112,157 @@ export default function Oppstart() {
         <Tekst variant="brod" style={styles.sentrert}>
           Ungdom i nabolaget hjelper eldre med handling, hagearbeid, turer og en hyggelig prat.
         </Tekst>
-        <Knapp ikon={ArrowRight} ikonEtter tekst="Kom i gang" onPress={() => ga('rolle')} />
+        <Knapp ikon={ArrowRight} ikonEtter tekst="Kom i gang" onPress={() => ga('konto')} />
+      </Skjerm>
+    );
+  }
+
+  if (steg === 'konto') {
+    return (
+      <Skjerm nokkel={steg} tilbake={tilbakelenke} hjelp={false}>
+        <Overskrift tittel="Velkommen!" undertekst="Lag en bruker med e-post og passord, eller logg inn." />
+        <Knapp ikon={UserPlus} tekst="Opprett bruker" onPress={() => ga('opprett')} />
+        <Knapp variant="sekundar" ikon={LogIn} tekst="Logg inn" onPress={() => ga('logginn')} />
+        <View style={styles.kommer}>
+          <Tekst variant="under" vekt={700}>
+            Kommer snart
+          </Tekst>
+          <Knapp tekst="Logg inn med Vipps" deaktivert style={{ backgroundColor: vippsOransje }} onPress={() => {}} />
+          <Knapp tekst="Bekreft med BankID" variant="sekundar" deaktivert onPress={() => {}} />
+          <Tekst variant="underLiten" style={styles.sentrert}>
+            Vipps og BankID er ikke koblet til ennå. Bruk e-post og passord i testen.
+          </Tekst>
+        </View>
+        {!supabaseKlar && (
+          <Infoboks tekst="Appen er ikke koblet til databasen ennå, så du kan ikke opprette bruker. Si fra til teamet." />
+        )}
+      </Skjerm>
+    );
+  }
+
+  if (steg === 'opprett') {
+    const klar = navn.trim().length >= 2 && rolle && epostOk && passordOk;
+    return (
+      <Skjerm nokkel={steg} tilbake={tilbakelenke} hjelp={false}>
+        <Overskrift tittel="Opprett bruker" undertekst="Det tar under ett minutt." />
+        <Tekstfelt etikett="Navn" hjelpetekst="Vises på annonsene du legger ut." value={navn} onChangeText={setNavn} autoComplete="name" textContentType="name" maxLength={80} />
+        <View style={styles.gruppe}>
+          <Tekst variant="brodLiten" vekt={700}>
+            Hva vil du gjøre?
+          </Tekst>
+          <Chiprad>
+            <Chip tekst="Jeg trenger hjelp" valgt={rolle === 'eldre'} onPress={() => setRolle('eldre')} />
+            <Chip tekst="Jeg vil hjelpe" valgt={rolle === 'ungdom'} onPress={() => setRolle('ungdom')} />
+          </Chiprad>
+        </View>
+        <Tekstfelt
+          etikett="E-post"
+          value={epost}
+          onChangeText={setEpost}
+          autoComplete="email"
+          textContentType="emailAddress"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        <Passordfelt verdi={passord} onEndre={setPassord} vis={visPassord} onVis={setVisPassord} ny />
+        {feil && <Infoboks ikon={CircleAlert} tekst={feil} />}
+        <Knapp
+          tekst="Opprett bruker"
+          laster={laster}
+          deaktivert={!klar}
+          onPress={async () => {
+            if (!rolle) return;
+            setLaster(true);
+            setFeil(null);
+            const svar = await konto.opprettBruker({ epost, passord, navn, rolle });
+            setLaster(false);
+            if (svar.feil) setFeil(svar.feil);
+            else etterInnlogging();
+          }}
+        />
+        <Lenke tekst="Har du allerede en bruker? Logg inn" onPress={() => { setSteg('logginn'); setFeil(null); }} />
+      </Skjerm>
+    );
+  }
+
+  if (steg === 'logginn') {
+    return (
+      <Skjerm nokkel={steg} tilbake={tilbakelenke} hjelp={false}>
+        <Overskrift tittel="Logg inn" undertekst="Med e-posten og passordet du valgte." />
+        <Tekstfelt
+          etikett="E-post"
+          value={epost}
+          onChangeText={setEpost}
+          autoComplete="email"
+          textContentType="emailAddress"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+        />
+        <Passordfelt verdi={passord} onEndre={setPassord} vis={visPassord} onVis={setVisPassord} />
+        {feil && <Infoboks ikon={CircleAlert} tekst={feil} />}
+        <Knapp
+          ikon={LogIn}
+          tekst="Logg inn"
+          laster={laster}
+          deaktivert={!epostOk || passord.length === 0}
+          onPress={async () => {
+            setLaster(true);
+            setFeil(null);
+            const svar = await konto.loggInn(epost, passord);
+            setLaster(false);
+            if (svar.feil) setFeil(svar.feil);
+            else etterInnlogging();
+          }}
+        />
+        <Lenke tekst="Ny her? Opprett bruker" onPress={() => { setSteg('opprett'); setFeil(null); }} />
+        <Tekst variant="underLiten" style={styles.sentrert}>
+          Glemt passordet? Skriv til {kontaktEpost}, så hjelper vi deg.
+        </Tekst>
       </Skjerm>
     );
   }
 
   if (steg === 'rolle') {
     return (
-      <Skjerm nokkel={steg} tilbake={tilbakelenke} hjelp={false}>
-        <Overskrift tittel="Hva vil du gjøre?" undertekst="Du kan bytte senere." />
+      <Skjerm nokkel={steg} hjelp={false}>
+        <Overskrift tittel="Hva vil du gjøre?" undertekst="Du kan bytte senere under Profil." />
         <View style={styles.knapper}>
-          <Knapp ikon={Heart} tekst="Jeg trenger hjelp" onPress={() => velgRolle('eldre')} />
+          <Knapp
+            ikon={Heart}
+            tekst="Jeg trenger hjelp"
+            laster={laster && rolle === 'eldre'}
+            onPress={async () => {
+              setRolle('eldre');
+              setLaster(true);
+              const svar = await konto.endreProfil({ rolle: 'eldre' });
+              setLaster(false);
+              if (svar.feil) setFeil(svar.feil);
+              else etterInnlogging();
+            }}
+          />
           <Tekst variant="under" style={styles.sentrert}>
-            For eldre, og for deg som bestiller for mor, far eller en nabo.
+            For eldre, og for deg som ber om hjelp for mor, far eller en nabo.
           </Tekst>
-          <Knapp ikon={HandHeart} tekst="Jeg vil hjelpe" onPress={() => velgRolle('ungdom')} />
+          <Knapp
+            ikon={HandHeart}
+            tekst="Jeg vil hjelpe"
+            laster={laster && rolle === 'ungdom'}
+            onPress={async () => {
+              setRolle('ungdom');
+              setLaster(true);
+              const svar = await konto.endreProfil({ rolle: 'ungdom' });
+              setLaster(false);
+              if (svar.feil) setFeil(svar.feil);
+              else etterInnlogging();
+            }}
+          />
           <Tekst variant="under" style={styles.sentrert}>
             For ungdom fra {regler.minsteAlder} år som vil tjene litt penger.
           </Tekst>
+          {feil && <Infoboks ikon={CircleAlert} tekst={feil} />}
         </View>
-      </Skjerm>
-    );
-  }
-
-  if (steg === 'vipps') {
-    return (
-      <Skjerm nokkel={steg} tilbake={tilbakelenke} hjelp={false}>
-        <Overskrift
-          tittel="Logg inn med Vipps"
-          undertekst="Da slipper du å huske et nytt passord, og vi vet hvem du er."
-        />
-        <Kort>
-          <Punkt ikon={ShieldCheck} tekst="Vi får bare navn, telefonnummer og adresse fra Vipps." />
-          <Punkt ikon={UserCheck} tekst="Vi ber aldri om fødselsnummer eller passord." />
-        </Kort>
-        <Knapp
-          tekst="Logg inn med Vipps"
-          laster={laster}
-          style={{ backgroundColor: vippsOransje }}
-          onPress={() =>
-            vent(1200, () => {
-              endre((d) => ({ ...d, innlogget: true }));
-              ga(rolle === 'ungdom' ? 'alder' : 'vilkar');
-            })
-          }
-        />
-        <Infoboks tekst="Dette er en testversjon. Innloggingen er ikke ekte ennå, så ingen opplysninger sendes til Vipps." />
-      </Skjerm>
-    );
-  }
-
-  if (steg === 'alder') {
-    const alder = data.ungdom.alder;
-    const forUng = alder < regler.minsteAlder;
-    return (
-      <Skjerm nokkel={steg} tilbake={tilbakelenke} hjelp={false}>
-        <Overskrift
-          tittel="Hvor gammel er du?"
-          undertekst={`Du må være minst ${regler.minsteAlder} år for å hjelpe.`}
-        />
-        <Chiprad>
-          {[12, 13, 14, 15, 16, 17, 18, 19].map((a) => (
-            <Chip
-              key={a}
-              tekst={a === 19 ? '19 eller eldre' : `${a} år`}
-              valgt={alder === a}
-              onPress={() => endre((d) => ({ ...d, ungdom: { ...d.ungdom, alder: a } }))}
-            />
-          ))}
-        </Chiprad>
-        {forUng ? (
-          <Infoboks
-            tekst={`Så kjekt at du vil hjelpe! Du kan bli hverdagshelt fra du er ${regler.minsteAlder} år. Spør gjerne en voksen om å hjelpe naboen sammen med deg så lenge.`}
-          />
-        ) : (
-          <Knapp ikon={ArrowRight} ikonEtter tekst="Neste" onPress={() => ga('bankid')} />
-        )}
-      </Skjerm>
-    );
-  }
-
-  if (steg === 'bankid') {
-    return (
-      <Skjerm nokkel={steg} tilbake={tilbakelenke} hjelp={false}>
-        <Overskrift
-          tittel="Bekreft hvem du er"
-          undertekst="Alle hjelpere bekrefter seg med BankID, så de eldre kan være trygge."
-        />
-        <Kort>
-          <Punkt ikon={BadgeCheck} tekst="Du får merket «Sjekket av Hverdagshelten» når teamet har godkjent deg." />
-        </Kort>
-        <Knapp
-          tekst={data.ungdom.bankId ? 'Bekreftet med BankID' : 'Bekreft med BankID'}
-          variant={data.ungdom.bankId ? 'gronn' : 'hoved'}
-          laster={laster}
-          onPress={() =>
-            vent(1200, () => {
-              endre((d) => ({ ...d, ungdom: { ...d.ungdom, bankId: true } }));
-              ga(data.ungdom.alder < 18 ? 'foresatt' : 'vilkar');
-            })
-          }
-        />
-        <Infoboks tekst="Testversjon: BankID er ikke koblet til ennå." />
-      </Skjerm>
-    );
-  }
-
-  if (steg === 'foresatt') {
-    const klar = foresatt.navn.trim().length > 1 && foresatt.telefon.replace(/\D/g, '').length >= 8;
-    return (
-      <Skjerm nokkel={steg} tilbake={tilbakelenke} hjelp={false}>
-        <Overskrift
-          tittel="Foresatt må godkjenne"
-          undertekst="Du er under 18, så en foresatt må si ja før du kan ta oppdrag."
-        />
-        <Tekstfelt
-          etikett="Navn på foresatt"
-          value={foresatt.navn}
-          onChangeText={(navn) => setForesatt((f) => ({ ...f, navn }))}
-          autoComplete="name"
-        />
-        <Tekstfelt
-          etikett="Mobilnummeret til foresatt"
-          value={foresatt.telefon}
-          onChangeText={(telefon) => setForesatt((f) => ({ ...f, telefon }))}
-          keyboardType="phone-pad"
-          hjelpetekst="Vi sender en SMS med lenke, så de kan godkjenne med BankID."
-        />
-        <Knapp
-          tekst="Send til foresatt"
-          laster={laster}
-          deaktivert={!klar}
-          onPress={() =>
-            vent(1500, () => {
-              endre((d) => ({ ...d, ungdom: { ...d.ungdom, foresatt, foresattGodkjent: true } }));
-              visToast(`${foresatt.navn.split(' ')[0]} har godkjent. Du kan ta oppdrag!`);
-              ga('vilkar');
-            })
-          }
-        />
-        <Infoboks tekst="Testversjon: ingen SMS sendes. Godkjenningen skjer automatisk." />
       </Skjerm>
     );
   }
@@ -248,17 +272,17 @@ export default function Oppstart() {
       <Skjerm nokkel={steg} tilbake={tilbakelenke} hjelp={false}>
         <Overskrift tittel="Før vi begynner" undertekst="Det viktigste fra vilkårene og personvernet, kort fortalt." />
         <Kort>
-          <Punkt ikon={HandHeart} tekst="Hverdagshelten setter folk i kontakt. Hjelperne er ungdom fra nabolaget." />
+          <Punkt ikon={HandHeart} tekst="Hverdagshelten setter folk i nabolaget i kontakt med hverandre." />
           <Punkt
             ikon={ShieldCheck}
             tekst="Vi lagrer bare det vi trenger, i Europa, og selger aldri opplysningene dine."
           />
-          <Punkt ikon={UserCheck} tekst="Adresse og telefonnummer vises bare til den som har en avtalt jobb." />
-          <Punkt ikon={Heart} tekst="All betaling skjer i appen. Ingen kontanter." />
+          <Punkt ikon={UserCheck} tekst="Andre ser navnet ditt og annonsene dine, aldri e-post, adresse eller telefon." />
+          <Punkt ikon={Heart} tekst="Vær snill og ærlig. Annonser som bryter reglene, blir fjernet." />
         </Kort>
         <Listevalg
           tittel="Les brukervilkårene"
-          undertekst="Hva vi har ansvar for, avlysning og klage"
+          undertekst="Hva vi har ansvar for, og regler for annonser"
           onPress={() => gaFrem({ pathname: '/info/[side]', params: { side: 'vilkar' } })}
         />
         <Listevalg
@@ -275,7 +299,7 @@ export default function Oppstart() {
           tekst="Godta og fortsett"
           deaktivert={!godtatt}
           onPress={() => {
-            endre((d) => ({ ...d, vilkarGodtatt: true }));
+            endre((d) => ({ ...d, vilkarGodtatt: true, innlogget: true }));
             if (data.omvisningSett) ferdig();
             else ga('omvisning');
           }}
@@ -284,18 +308,19 @@ export default function Oppstart() {
     );
   }
 
+  const ungdom = (konto.profil?.rolle ?? rolle) === 'ungdom';
   const sider =
-    rolle === 'ungdom'
+    ungdom
       ? [
           {
             ikon: CalendarDays,
-            tittel: 'Finn et oppdrag',
-            tekst: 'På Hjem ser du ledige oppdrag nær deg. Du ser bare området, ikke adressen.',
+            tittel: 'Se hvem som trenger hjelp',
+            tekst: 'På Hjem ser du annonsene fra folk i nabolaget. Trykk på en annonse for å lese mer.',
           },
           {
             ikon: BadgeCheck,
-            tittel: 'Ta oppdraget',
-            tekst: 'Når oppdraget er ditt, ser du adressen og kan trykke «Vis veien».',
+            tittel: 'Aksepter og hjelp',
+            tekst: 'Når du aksepterer, får du adressen, «Vis veien» og en chat med den som trenger hjelp.',
           },
           {
             ikon: MessageCircleHeart,
@@ -304,8 +329,16 @@ export default function Oppstart() {
           },
         ]
       : [
-          { ikon: Heart, tittel: 'Bestill hjelp', tekst: 'Trykk «Bestill hjelp» på forsiden. Det tar tre enkle steg.' },
-          { ikon: CalendarDays, tittel: 'Se avtalene dine', tekst: 'Under «Avtaler» ser du hvem som kommer, og når.' },
+          {
+            ikon: Heart,
+            tittel: 'Be om hjelp',
+            tekst: 'Gå til «Mine annonser» og trykk «Legg ut annonse». Skriv hva du trenger hjelp med. Det tar et minutt.',
+          },
+          {
+            ikon: CalendarDays,
+            tittel: 'Snakk med hjelperen',
+            tekst: 'Når en hjelper aksepterer, kan dere skrive sammen, og du ser når hjelperen er på vei.',
+          },
           {
             ikon: MessageCircleHeart,
             tittel: 'Vi er her for deg',
@@ -348,6 +381,58 @@ export default function Oppstart() {
   );
 }
 
+function Lenke({ tekst, onPress }: { tekst: string; onPress: () => void }) {
+  return (
+    <Pressable accessibilityRole="link" onPress={onPress} hitSlop={8} style={styles.lenke}>
+      <Tekst variant="brod" vekt={700} farge={farger.lilla} style={styles.understrek}>
+        {tekst}
+      </Tekst>
+    </Pressable>
+  );
+}
+
+function Passordfelt({
+  verdi,
+  onEndre,
+  vis,
+  onVis,
+  ny = false,
+}: {
+  verdi: string;
+  onEndre: (t: string) => void;
+  vis: boolean;
+  onVis: (v: boolean) => void;
+  ny?: boolean;
+}) {
+  return (
+    <View style={styles.gruppe}>
+      <Tekstfelt
+        etikett="Passord"
+        hjelpetekst={ny ? 'Minst 6 tegn.' : undefined}
+        value={verdi}
+        onChangeText={onEndre}
+        secureTextEntry={!vis}
+        autoComplete={ny ? 'new-password' : 'current-password'}
+        textContentType={ny ? 'newPassword' : 'password'}
+        autoCapitalize="none"
+        autoCorrect={false}
+      />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={vis ? 'Skjul passordet' : 'Vis passordet'}
+        onPress={() => onVis(!vis)}
+        hitSlop={8}
+        style={styles.visPassord}
+      >
+        {vis ? <EyeOff size={20} color={farger.lilla} /> : <Eye size={20} color={farger.lilla} />}
+        <Tekst variant="brodLiten" vekt={700} farge={farger.lilla}>
+          {vis ? 'Skjul passordet' : 'Vis passordet'}
+        </Tekst>
+      </Pressable>
+    </View>
+  );
+}
+
 function Punkt({ ikon, tekst }: { ikon: typeof Heart; tekst: string }) {
   return (
     <View style={styles.punkt}>
@@ -387,6 +472,29 @@ const styles = StyleSheet.create({
   },
   flex: {
     flex: 1,
+  },
+  gruppe: {
+    gap: 10,
+  },
+  kommer: {
+    gap: 10,
+    marginTop: 12,
+    opacity: 0.9,
+  },
+  lenke: {
+    alignSelf: 'center',
+    minHeight: 44,
+    justifyContent: 'center',
+  },
+  understrek: {
+    textDecorationLine: 'underline',
+  },
+  visPassord: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    minHeight: 40,
   },
   omvisning: {
     alignItems: 'center',

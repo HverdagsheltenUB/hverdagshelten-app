@@ -31,9 +31,15 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Hverdagshelten trenger tilgang til bildene dine for å legge ved bilde av handlelisten eller kvitteringen.",
-          "cameraPermission": "Hverdagshelten trenger kameraet for å ta bilde av handlelisten eller kvitteringen.",
+          "photosPermission": "Hverdagshelten trenger tilgang til bildene dine for å legge bilder i annonser og på profilen din.",
+          "cameraPermission": "Hverdagshelten trenger kameraet for å ta bilder til annonser og profilen din.",
           "microphonePermission": false
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Hverdagshelten bruker posisjonen din bare når du trykker «Bruk der jeg er nå», så hjelperen finner fram."
         }
       ]
     ],

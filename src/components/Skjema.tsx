@@ -1,8 +1,9 @@
 import { Check } from 'lucide-react-native';
-import { useState } from 'react';
+import { useRef, useState, type ComponentRef } from 'react';
 import { Platform, Pressable, StyleSheet, TextInput, View, type TextInputProps } from 'react-native';
 
 import { farger, skrift } from '../lib/tema';
+import { useRullTilFelt } from './Skjerm';
 import { Tekst, useTekststorrelse } from './Tekst';
 
 type TekstfeltProps = Omit<TextInputProps, 'style'> & {
@@ -15,9 +16,11 @@ type TekstfeltProps = Omit<TextInputProps, 'style'> & {
 export function Tekstfelt({ etikett, hjelpetekst, flereLinjer = false, ...rest }: TekstfeltProps) {
   const fontSize = useTekststorrelse('brod');
   const [fokus, setFokus] = useState(false);
+  const feltRef = useRef<ComponentRef<typeof View>>(null);
+  const rullTilFelt = useRullTilFelt();
 
   return (
-    <View style={styles.felt}>
+    <View style={styles.felt} ref={feltRef} collapsable={false}>
       <Tekst variant="brodLiten" vekt={700}>
         {etikett}
       </Tekst>
@@ -27,9 +30,12 @@ export function Tekstfelt({ etikett, hjelpetekst, flereLinjer = false, ...rest }
         placeholderTextColor={farger.dempet}
         multiline={flereLinjer}
         textAlignVertical={flereLinjer ? 'top' : 'center'}
+        // Lengre tekster får god plass, og feltet vokser opp til en grense før det ruller selv.
+        scrollEnabled={flereLinjer}
         {...rest}
         onFocus={(e) => {
           setFokus(true);
+          rullTilFelt(feltRef.current);
           rest.onFocus?.(e);
         }}
         onBlur={(e) => {
@@ -81,7 +87,8 @@ const styles = StyleSheet.create({
   },
   input: {
     minHeight: 56,
-    borderWidth: 1.5,
+    // Samme kanttykkelse med og uten fokus, så teksten ikke hopper når man trykker i feltet.
+    borderWidth: 2,
     borderColor: farger.linje,
     borderRadius: 14,
     backgroundColor: farger.hvit,
@@ -90,11 +97,12 @@ const styles = StyleSheet.create({
     color: farger.tekst,
   },
   flereLinjer: {
-    minHeight: 110,
+    minHeight: 150,
+    maxHeight: 280,
+    lineHeight: 24,
   },
   fokus: {
     borderColor: farger.lilla,
-    borderWidth: 2,
   },
   utenRamme: {
     outlineWidth: 0,

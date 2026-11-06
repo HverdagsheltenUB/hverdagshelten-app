@@ -69,7 +69,7 @@ export default function Quiz() {
       <Tekst variant="under" vekt={700} farge={farger.lilla}>
         Spørsmål {nummer + 1} av {sporsmal.length}
       </Tekst>
-      {nummer === 0 && !data.ungdom.quizBestatt && (
+      {nummer === 0 && !data.quizBestatt && (
         <Knapp
           liten
           variant="sekundar"
@@ -109,7 +109,7 @@ export default function Quiz() {
             }
             setSvar(null);
             if (nummer === sporsmal.length - 1) {
-              endre((d) => ({ ...d, ungdom: { ...d.ungdom, quizBestatt: true } }));
+              endre((d) => ({ ...d, quizBestatt: true }));
               visToast('Quizen er bestått!');
             }
             setNummer((n) => n + 1);

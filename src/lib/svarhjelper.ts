@@ -1,4 +1,4 @@
-import { kontaktperson } from './eksempeldata';
+import { kontaktperson } from './kontaktinfo';
 
 // En enkel hjelper som svarer på vanlige spørsmål døgnet rundt.
 // Den kjenner bare igjen ord. Vet den ikke svaret, sender den spørsmålet videre til et menneske.
@@ -8,28 +8,28 @@ type Svar = { ord: string[]; svar: string };
 
 const svarliste: Svar[] = [
   {
-    ord: ['avlys', 'avbestill', 'kan ikke komme'],
-    svar: 'Gå til «Avtaler», trykk på avtalen og velg «Avlys avtalen». Hjelperen får beskjed med en gang. Avlys gjerne senest ett døgn før.',
+    ord: ['slette annonse', 'slett annonse', 'fjerne annonse', 'avlys'],
+    svar: 'Gå til «Mine annonser» og trykk «Slett» på annonsen. Da forsvinner den for alle med en gang.',
   },
   {
-    ord: ['flytt', 'endre tid', 'annen dag', 'annet tidspunkt'],
-    svar: 'Gå til «Avtaler», trykk på avtalen og velg «Flytt til en annen tid».',
+    ord: ['endre annonse', 'endre', 'rette', 'redigere'],
+    svar: 'Gå til «Mine annonser» og trykk «Endre» på annonsen. Endringene vises for alle når du lagrer.',
   },
   {
     ord: ['pris', 'kost', 'betal', 'vipps', 'gebyr', 'penger'],
-    svar: 'Hjelpen koster 150 kr per time, pluss 29 kr i gebyr per bestilling. Du betaler med Vipps etter besøket, aldri med kontanter.',
+    svar: 'Vanlig pris for hjelp er 150 kr per time. Du skriver selv hva du vil betale i annonsen. Betaling i appen med Vipps kommer senere.',
   },
   {
     ord: ['trygg', 'sjekk', 'bankid', 'kjenner', 'hvem kommer'],
-    svar: 'Alle hjelpere bekrefter seg med BankID, foresatte godkjenner dem, og teamet møter dem før første oppdrag. Du ser navn og bilde før besøket.',
+    svar: 'Du ser alltid hvem som har lagt ut en annonse. Senere skal alle hjelpere bekrefte seg med BankID. Er det noe som ikke føles riktig, trykk «Meld fra om annonsen».',
   },
   {
-    ord: ['bestill', 'hjelp med', 'handle', 'plen', 'hage'],
-    svar: 'Trykk «Bestill hjelp» på forsiden. Velg hva du trenger, når det passer og hvor lenge. Du ser prisen før du sender.',
+    ord: ['legge ut', 'legg ut', 'annonse', 'bestill', 'hjelp med'],
+    svar: 'Trykk «Legg ut annonse» på forsiden. Skriv en kort tittel, så foreslår appen en kategori. Du ser annonsen før du publiserer.',
   },
   {
     ord: ['mor', 'far', 'nabo', 'for andre', 'for en annen'],
-    svar: 'Trykk «Bestill for noen andre» på forsiden. Da skriver du inn navn og adresse til den som skal få hjelp.',
+    svar: 'Du kan legge ut en annonse for mor, far eller en nabo. Skriv i beskrivelsen hvem hjelpen er til.',
   },
   {
     ord: ['slett', 'personvern', 'opplysning', 'data'],
@@ -41,11 +41,11 @@ const svarliste: Svar[] = [
   },
   {
     ord: ['utbetal', 'lønn', 'tjent', 'skatt'],
-    svar: 'Pengene for oppdragene kommer til Vipps eller kontoen din den første i hver måned. Under «Utbetaling» i profilen ser du historikk og årsoversikt.',
+    svar: 'Utbetaling gjennom appen kommer senere. I testen avtaler dere betalingen selv.',
   },
   {
     ord: ['adresse'],
-    svar: 'Hjelperen ser bare området før avtalen er bekreftet. Den fulle adressen vises først når oppdraget er avtalt, og skjules igjen når det er ferdig.',
+    svar: 'Ingen andre ser adressen din. Skriv bare området på annonsen, for eksempel «Sagene».',
   },
 ];
 
@@ -58,7 +58,7 @@ export function finnSvar(sporsmal: string) {
 
 export const vanligeSporsmal = [
   { sporsmal: 'Hva koster det?', svar: svarliste[2].svar },
-  { sporsmal: 'Hvordan avlyser jeg?', svar: svarliste[0].svar },
-  { sporsmal: 'Er hjelperne trygge?', svar: svarliste[3].svar },
+  { sporsmal: 'Hvordan sletter jeg en annonse?', svar: svarliste[0].svar },
+  { sporsmal: 'Hvordan vet jeg hvem det er?', svar: svarliste[3].svar },
   { sporsmal: 'Hvem ser adressen min?', svar: svarliste[9].svar },
 ];

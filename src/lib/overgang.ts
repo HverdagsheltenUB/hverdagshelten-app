@@ -25,9 +25,9 @@ export function gaFrem(href: Href) {
   router.push(href);
 }
 
-// Bytter fane fra en lenke på skjermen. Lenkene peker alltid mot en fane lenger til høyre.
-export function gaTilFane(href: '/avtaler' | '/profil') {
-  settRetning('frem');
+// Bytter fane fra en lenke på skjermen.
+export function gaTilFane(href: '/' | '/annonser' | '/mine' | '/profil') {
+  settRetning(href === '/' ? 'tilbake' : 'frem');
   router.navigate(href);
 }
 

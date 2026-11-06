@@ -1,7 +1,7 @@
 import { useFocusEffect, useIsFocused } from 'expo-router';
 import { CircleHelp } from 'lucide-react-native';
-import { Children, useCallback, useRef, useState, type ReactNode } from 'react';
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
+import { Children, createContext, type ComponentRef, isValidElement, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
+import { KeyboardAvoidingView, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import Animated, { useReducedMotion } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -20,10 +20,23 @@ type Props = {
   hjelp?: boolean;
   // Noe som skal ligge fast nederst, f.eks. et skrivefelt i chatten.
   bunn?: ReactNode;
+  // Dra ned for å hente på nytt.
+  oppdater?: () => Promise<unknown>;
+  // Rull til bunnen når innholdet vokser, f.eks. i en chat.
+  holdNederst?: boolean;
 };
 
+// Lar et skrivefelt be skjermen rulle så feltet ikke havner bak tastaturet.
+type Rulletil = (felt: ComponentRef<typeof View> | null) => void;
+const RulleKontekst = createContext<Rulletil>(() => {});
+export const useRullTilFelt = () => useContext(RulleKontekst);
+
 // Felles ramme for alle skjermer: safe area øverst, rulling, og myk innkomst.
-export function Skjerm({ children, nokkel = '', tilbake, hjelp = true, bunn }: Props) {
+export function Skjerm({ children, nokkel = '', tilbake, hjelp = true, bunn, oppdater, holdNederst = false }: Props) {
+  const rulleRef = useRef<ComponentRef<typeof ScrollView> | null>(null);
+  const innholdRef = useRef<ComponentRef<typeof View> | null>(null);
+  const synlig = useRef({ fra: 0, hoyde: 0 });
+  const [henter, setHenter] = useState(false);
   const innsett = useSafeAreaInsets();
   const redusertBevegelse = useReducedMotion();
   const fokusert = useIsFocused();
@@ -42,6 +55,24 @@ export function Skjerm({ children, nokkel = '', tilbake, hjelp = true, bunn }: P
     }, []),
   );
 
+  // Når tastaturet har kommet opp: rull bare hvis feltet er skjult, og legg det godt synlig.
+  const rullTilFelt = useCallback<Rulletil>((felt) => {
+    if (Platform.OS === 'web' || !felt || !innholdRef.current) return;
+    setTimeout(() => {
+      if (!innholdRef.current) return;
+      felt.measureLayout(
+        innholdRef.current,
+        (_x: number, y: number, _b: number, h: number) => {
+          const { fra, hoyde } = synlig.current;
+          const topp = y + innsett.top + 12;
+          if (topp >= fra + 16 && topp + h <= fra + hoyde - 16) return;
+          rulleRef.current?.scrollTo({ y: Math.max(0, topp - 90), animated: true });
+        },
+        () => {},
+      );
+    }, 320);
+  }, [innsett.top]);
+
   const retning = hentRetning();
   const visTopp = Boolean(tilbake) || hjelp;
 
@@ -50,8 +81,33 @@ export function Skjerm({ children, nokkel = '', tilbake, hjelp = true, bunn }: P
       <ScrollView
         style={styles.rulling}
         contentContainerStyle={[styles.innhold, { paddingTop: innsett.top + 12 }]}
+        ref={rulleRef}
+        onContentSizeChange={holdNederst ? () => rulleRef.current?.scrollToEnd({ animated: true }) : undefined}
+        onScroll={(e) => {
+          synlig.current.fra = e.nativeEvent.contentOffset.y;
+        }}
+        onLayout={(e) => {
+          synlig.current.hoyde = e.nativeEvent.layout.height;
+        }}
+        scrollEventThrottle={64}
         keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="none"
+        refreshControl={
+          oppdater ? (
+            <RefreshControl
+              refreshing={henter}
+              tintColor={farger.lilla}
+              colors={[farger.lilla]}
+              onRefresh={() => {
+                setHenter(true);
+                oppdater().finally(() => setHenter(false));
+              }}
+            />
+          ) : undefined
+        }
       >
+        <RulleKontekst.Provider value={rullTilFelt}>
+        <View ref={innholdRef} collapsable={false}>
         <Animated.View key={`${besok}-${nokkel}`} entering={skjermInn(retning, redusertBevegelse)} style={styles.liste}>
           {visTopp && (
             <View style={styles.topp}>
@@ -63,12 +119,19 @@ export function Skjerm({ children, nokkel = '', tilbake, hjelp = true, bunn }: P
               {hjelp && <Hjelpknapp />}
             </View>
           )}
+          {/* Nøkkelen følger plassen i koden, ikke i listen. Ellers byttes feltene ut når noe
+              dukker opp eller forsvinner over dem, og tastaturet lukkes mens man skriver. */}
           {Children.toArray(children).map((barn, i) => (
-            <Animated.View key={i} entering={elementInn(i, redusertBevegelse)}>
+            <Animated.View
+              key={isValidElement(barn) && barn.key != null ? barn.key : i}
+              entering={elementInn(i, redusertBevegelse)}
+            >
               {barn}
             </Animated.View>
           ))}
         </Animated.View>
+        </View>
+        </RulleKontekst.Provider>
       </ScrollView>
       {bunn && <View style={[styles.bunn, { paddingBottom: innsett.bottom + 12 }]}>{bunn}</View>}
     </KeyboardAvoidingView>

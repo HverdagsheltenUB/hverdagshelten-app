@@ -1,7 +1,7 @@
 import { Text, type TextProps } from 'react-native';
 
 import { useApp } from '../lib/app-tilstand';
-import { farger, skrift, tekststorrelser, type Tekststorrelse, type Vekt } from '../lib/tema';
+import { farger, skrift, skriftstorrelse, type Tekststorrelse, type Vekt } from '../lib/tema';
 
 const standardVekt: Partial<Record<Tekststorrelse, Vekt>> = {
   tittel: 800,
@@ -20,10 +20,10 @@ type Props = TextProps & {
   farge?: string;
 };
 
-// All tekst i appen går gjennom denne, så «Større tekst» virker overalt.
+// All tekst i appen går gjennom denne, så tekststørrelsen virker overalt.
 export function Tekst({ variant = 'brod', vekt, farge, style, ...rest }: Props) {
-  const { storreTekst } = useApp();
-  const fontSize = tekststorrelser[variant][storreTekst ? 1 : 0];
+  const { tekstniva } = useApp();
+  const fontSize = skriftstorrelse(variant, tekstniva);
 
   return (
     <Text
@@ -42,6 +42,6 @@ export function Tekst({ variant = 'brod', vekt, farge, style, ...rest }: Props) 
 }
 
 export function useTekststorrelse(variant: Tekststorrelse) {
-  const { storreTekst } = useApp();
-  return tekststorrelser[variant][storreTekst ? 1 : 0];
+  const { tekstniva } = useApp();
+  return skriftstorrelse(variant, tekstniva);
 }
