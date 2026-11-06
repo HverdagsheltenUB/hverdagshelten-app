@@ -39,7 +39,7 @@ function MineOppdrag() {
           ikon={ClipboardList}
           tittel="Ingen oppdrag ennå"
           tekst="Finn en annonse på Hjem og trykk «Aksepter oppdraget». Da dukker den opp her."
-          knapp={{ tekst: 'Se ledige annonser', onPress: () => gaTilFane('/') }}
+          knapp={{ tekst: 'Se ledige annonser', onPress: () => gaTilFane('/annonser') }}
         />
       ) : (
         <>

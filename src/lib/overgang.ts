@@ -26,7 +26,7 @@ export function gaFrem(href: Href) {
 }
 
 // Bytter fane fra en lenke på skjermen.
-export function gaTilFane(href: '/' | '/mine' | '/profil') {
+export function gaTilFane(href: '/' | '/annonser' | '/mine' | '/profil') {
   settRetning(href === '/' ? 'tilbake' : 'frem');
   router.navigate(href);
 }

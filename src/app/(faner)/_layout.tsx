@@ -17,6 +17,7 @@ export default function FaneLayout() {
       screenOptions={{ headerShown: false, sceneStyle: { backgroundColor: farger.krem } }}
     >
       <Tabs.Screen name="index" />
+      <Tabs.Screen name="annonser" />
       <Tabs.Screen name="mine" />
       <Tabs.Screen name="profil" />
     </Tabs>

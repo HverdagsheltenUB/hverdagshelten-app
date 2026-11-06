@@ -1,5 +1,5 @@
 import type { BottomTabBarProps } from 'expo-router/js-tabs';
-import { ClipboardList, House, Megaphone, User, type LucideIcon } from 'lucide-react-native';
+import { ClipboardList, House, Megaphone, Search, User, type LucideIcon } from 'lucide-react-native';
 import { useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { interpolateColor, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
@@ -10,8 +10,10 @@ import { animasjon, farger, ikonStrek } from '../lib/tema';
 import { Tekst } from './Tekst';
 import { Trykkbar } from './Trykkbar';
 
-const faner: Record<string, (ungdom: boolean) => { tekst: string; ikon: LucideIcon }> = {
+const faner: Record<string, (ungdom: boolean) => { tekst: string; ikon: LucideIcon } | null> = {
   index: () => ({ tekst: 'Hjem', ikon: House }),
+  // Bare hjelperne finner og søker i annonser. De som trenger hjelp, har sine egne under «Mine annonser».
+  annonser: (ungdom) => (ungdom ? { tekst: 'Annonser', ikon: Search } : null),
   mine: (ungdom) => (ungdom ? { tekst: 'Mine oppdrag', ikon: ClipboardList } : { tekst: 'Mine annonser', ikon: Megaphone }),
   profil: () => ({ tekst: 'Profil', ikon: User }),
 };
@@ -62,7 +64,7 @@ function Fane({ tekst, ikon: Ikon, aktiv, onPress }: FaneProps) {
       style={[styles.fane, bakgrunn]}
     >
       <Ikon size={26} color={farge} strokeWidth={ikonStrek} />
-      <Tekst variant="fane" vekt={aktiv ? 700 : 600} farge={farge}>
+      <Tekst variant="fane" vekt={aktiv ? 700 : 600} farge={farge} numberOfLines={2} style={styles.fanetekst}>
         {tekst}
       </Tekst>
     </Trykkbar>
@@ -85,5 +87,8 @@ const styles = StyleSheet.create({
     minHeight: 60,
     justifyContent: 'center',
     borderRadius: 16,
+  },
+  fanetekst: {
+    textAlign: 'center',
   },
 });

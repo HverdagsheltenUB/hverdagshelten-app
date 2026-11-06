@@ -1,21 +1,20 @@
-import { CalendarHeart, HandHeart, Sparkles, Sun, WifiOff } from 'lucide-react-native';
+import { CalendarHeart, Search, Sparkles, Sun, WifiOff } from 'lucide-react-native';
 import { useMemo, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 
 import { Tilbudskort, Tomtilstand } from '../../components/Annonse';
-import { useBekreft } from '../../components/Dialog';
 import { Aktivitet, Dagstripe } from '../../components/Kalender';
+import { Knapp } from '../../components/Knapp';
 import { Kort } from '../../components/Kort';
 import { Skjerm } from '../../components/Skjerm';
 import { Avatar, Pille, Seksjon } from '../../components/Smaabiter';
+import { useTakkJa } from '../../components/TakkJa';
 import { Tekst } from '../../components/Tekst';
-import { useApp } from '../../lib/app-tilstand';
 import {
   dagerFraIdag,
   dagtekst,
   datonokkel,
   maaneder,
-  takkJa,
   ukedager,
   useAnnonser,
   type Annonse,
@@ -175,33 +174,12 @@ function Dagsoversikt({ annonser, laster, hjelper }: { annonser: Annonse[]; last
   );
 }
 
-// Annonsene fra de som trenger hjelp, med «Takk ja» rett på kortet.
+// De nyeste annonsene, med «Takk ja» rett på kortet. Alle, med søk og filtre, ligger under «Annonser».
+const visPaForsiden = 3;
+
 function LedigeAnnonser({ etterTakkJa }: { etterTakkJa: () => Promise<void> }) {
   const { annonser, laster, feil, oppdater } = useAnnonser({ bareLedige: true });
-  const { visToast } = useApp();
-  const bekreft = useBekreft();
-  const [tar, setTar] = useState<string | null>(null);
-
-  async function sierJa(a: Annonse) {
-    const navn = fornavn(a.profiler?.navn) || 'den som la den ut';
-    const ja = await bekreft({
-      tittel: `Takke ja til «${a.tittel}»?`,
-      tekst: `Da får du adressen og kan skrive med ${navn}. Annonsen forsvinner for de andre hjelperne.`,
-      ja: 'Ja, takk ja',
-    });
-    if (!ja) return;
-    setTar(a.id);
-    const svar = await takkJa(a);
-    setTar(null);
-    if (svar.feil) {
-      visToast(svar.feil);
-      await oppdater();
-      return;
-    }
-    visToast(`Du har takket ja! ${navn} har fått beskjed.`);
-    await Promise.all([oppdater(), etterTakkJa()]);
-    apne(a);
-  }
+  const { tar, sierJa } = useTakkJa(() => Promise.all([oppdater(), etterTakkJa()]));
 
   return (
     <>
@@ -226,15 +204,15 @@ function LedigeAnnonser({ etterTakkJa }: { etterTakkJa: () => Promise<void> }) {
         />
       ) : (
         <View style={styles.liste}>
-          {annonser.map((a) => (
+          {annonser.slice(0, visPaForsiden).map((a) => (
             <Tilbudskort key={a.id} annonse={a} tar={tar === a.id} onTakkJa={() => sierJa(a)} onApne={() => apne(a)} />
           ))}
-          <View style={styles.rolig}>
-            <HandHeart size={20} color={farger.dempet} strokeWidth={ikonStrek} />
-            <Tekst variant="underLiten" style={styles.flex}>
-              Når du takker ja, får du adressen og kan skrive med den som trenger hjelp.
-            </Tekst>
-          </View>
+          <Knapp
+            variant="sekundar"
+            ikon={Search}
+            tekst={annonser.length > visPaForsiden ? `Se alle ${annonser.length} annonsene` : 'Søk i annonsene'}
+            onPress={() => gaTilFane('/annonser')}
+          />
         </View>
       )}
     </>
